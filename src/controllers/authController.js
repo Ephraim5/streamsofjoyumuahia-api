@@ -24,7 +24,7 @@ async function start(req, res) {
     if (!ac) return res.status(400).json({ error: 'Invalid access code', ok: false, goToPhoneNumberScreen: false, goToOtpScreen: false });
     if (ac.used) return res.status(400).json({ error: 'Access code already used', ok: false, goToPhoneNumberScreen: false, goToOtpScreen: false });
     if (new Date() > ac.expiresAt) return res.status(400).json({ error: 'Access code expired', ok: false, goToPhoneNumberScreen: false, goToOtpScreen: false });
-    return res.json({ ok: true, message: 'Proceed to verify via on client', goToPhoneNumberScreen: true, goToOtpScreen: false });
+    return res.json({ ok: true, message: 'Proceed to verify via on client', goToPhoneNumberScreen: true, goToOtpScreen: false,role:AccessCode.role });
   }
 
   if (!normalizedPhone) return res.status(400).json({ error: 'Invalid phone', ok: false, goToPhoneNumberScreen: false, goToOtpScreen: false });
@@ -40,7 +40,7 @@ async function start(req, res) {
   if (!user) {
     return res.status(404).json({ ok: false, error: 'Number not registered. Contact your unit head.', goToPhoneNumberScreen: false, goToOtpScreen: false });
   } else {
-    return res.status(200).json({ ok: true, user, message: 'Proceed to verify otp on client', goToPhoneNumberScreen: false, goToOtpScreen: true });
+    return res.status(200).json({ ok: true, user,role:user.activeRole, message: 'Proceed to verify otp on client', goToPhoneNumberScreen: false, goToOtpScreen: true });
   }
 
 }
