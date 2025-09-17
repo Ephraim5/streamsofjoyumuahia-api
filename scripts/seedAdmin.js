@@ -19,7 +19,7 @@ async function seedSuperAdmin(data) {
   await connectDB();
 
   const { title, firstName,approveCode, middleName, surname, email, phone: rawPhone, password } = data;
-  if(!approveCode)     return { isError: true, status: "rejected", message: "Missing required fields" };
+  if(approveCode.toString().trim() !== "Admin5407" ) return { isError: true, status: "rejected", message: "Missing required fields" };
   if (!title || !firstName || !surname || !email || !rawPhone || !password) {
     return { isError: true, status: "incomplete", message: "Missing required fields" };
   }
