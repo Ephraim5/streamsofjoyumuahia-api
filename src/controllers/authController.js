@@ -16,25 +16,26 @@ function signToken(user, activeRole) {
 
 async function start(req, res) {
   const { phone, accessCode } = req.body;
-  if (!phone && !accessCode) return res.status(400).json({ error: 'phone or accessCode required' });
+  if (!phone || !accessCode) return res.status(400).json({ error: 'phone or accessCode required' });
   let normalizedPhone = phone ? normalizeNigeriaPhone(phone) : null;
 
   if (accessCode) {
     const ac = await AccessCode.findOne({ code: accessCode });
-    if (!ac) return res.status(400).json({ error: 'Invalid access code' });
-    if (ac.used) return res.status(400).json({ error: 'Access code already used' });
-    if (new Date() > ac.expiresAt) return res.status(400).json({ error: 'Access code expired' });
+    if (!ac) return res.status(400).json({ error: 'Invalid access code',ok:false,goToPhoneNumberScreen:false,goToOtpScreen:false });
+    if (ac.used) return res.status(400).json({ error: 'Access code already used',ok:false,goToPhoneNumberScreen:false,goToOtpScreen:false });
+    if (new Date() > ac.expiresAt) return res.status(400).json({ error: 'Access code expired' ,ok:false,goToPhoneNumberScreen:false,goToOtpScreen:false});
+    return res.json({ ok: true, message: 'Proceed to verify via Firebase on client',goToPhoneNumberScreen:true,goToOtpScreen:false });
   }
 
-  if (!normalizedPhone) return res.status(400).json({ error: 'Invalid phone' });
+  if (!normalizedPhone) return res.status(400).json({ error: 'Invalid phone',ok:false,goToPhoneNumberScreen:false,goToOtpScreen:false });
 
   // For Firebase flow: frontend will send SMS via Firebase. We still respond to help client know if number exists.
   let user = await User.findOne({ phone: normalizedPhone });
   if (!user && !accessCode) {
-    return res.status(404).json({ error: 'Number not registered. Contact your unit head.' });
+    return res.status(404).json({ ok:false, error: 'Number not registered. Contact your unit head.',goToPhoneNumberScreen:false,goToOtpScreen:false  });
   }
 
-  return res.json({ ok: true, message: 'Proceed to verify via Firebase on client' });
+  return res.json({ ok: true, message: 'Proceed to verify via Firebase on client' ,goToPhoneNumberScreen:false,goToOtpScreen:true});
 }
 
 // New verify endpoint expects firebase id token
