@@ -15,8 +15,9 @@ function signToken(user, activeRole) {
 
 async function start(req, res) {
   const { phone, accessCode } = req.body;
+  console.log(req.body)
   if (!phone && !accessCode) return res.status(400).json({ ok: false, goToPhoneNumberScreen: false, goToOtpScreen: false, error: 'phone or accessCode required' });
-  let normalizedPhone = phone ? normalizeNigeriaPhone(phone, true) : null;
+  let normalizedPhone = phone ? normalizeNigeriaPhone(phone, false) : null;
 
   if (accessCode) {
     const ac = await AccessCode.findOne({ code: accessCode });
@@ -32,10 +33,11 @@ async function start(req, res) {
   let user = await User.findOne({
     $or: [
       { phone: normalizedPhone },
-      { phone: phone }
+      { phone: phone },
+      {phone:normalizeNigeriaPhone(phone, true)}
     ]
   }); 
-  if (!user && !accessCode) {
+  if (!user) {
     return res.status(404).json({ ok: false, error: 'Number not registered. Contact your unit head.', goToPhoneNumberScreen: false, goToOtpScreen: false });
   } else {
     return res.status(200).json({ ok: true, user, message: 'Proceed to verify otp on client', goToPhoneNumberScreen: false, goToOtpScreen: true });

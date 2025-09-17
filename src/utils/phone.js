@@ -1,43 +1,28 @@
-function normalizeNigeriaPhone(raw, char) {
-  if (char) {
-    if (!raw) return raw;
-    // remove spaces, dashes, parentheses
-    let s = ('' + raw).replace(/[^0-9\+]/g, '');
-    if (s.startsWith('+')) {
-      // ensure +234...
-      if (s.startsWith('+234')) return s;
-    }
-    if (s.startsWith('234')) {
-      return '+' + s;
-    }
-    if (s.length === 11 && s.startsWith('0')) {
-      return '+234' + s.slice(1);
-    }
-    // if already 10-digit (no leading zero) try add +234
-    if (s.length === 10) {
-      return '+234' + s;
-    }
-    return s;
-  } else {
-    if (!raw) return raw;
-    // remove spaces, dashes, parentheses
-    let s = ('' + raw).replace(/[^0-9\+]/g, '');
-    if (s.startsWith('')) {
-      // ensure +234...
-      if (s.startsWith('234')) return s.trim();
-    }
-    if (s.startsWith('234')) {
-      return s.trim();
-    }
-    if (s.length === 11 && s.startsWith('0')) {
-      return '234' + s.slice(1).trim();
-    }
-    // if already 10-digit (no leading zero) try add +234
-    if (s.length === 10) {
-      return '234' + s.trim();
-    }
-    return s;
+function normalizeNigeriaPhone(raw, withPlusChar) {
+  if (!raw) return null;
+  
+  // 1. Remove non-digit characters
+  const s = raw.replace(/\D/g, '');
+  
+  // 2. Handle Nigerian phone numbers (080..., 23480..., +23480...)
+  if (s.startsWith('0') && s.length === 11) {
+    const normalized = '234' + s.slice(1);
+    return withPlusChar ? `+${normalized}` : normalized;
   }
+  
+  // 3. Handle numbers already in international format
+  if (s.startsWith('234') && s.length === 13) {
+    return withPlusChar ? `+${s}` : s;
+  }
+  
+  // 4. Handle numbers without leading zero or country code
+  if (s.length === 10) {
+    const normalized = '234' + s;
+    return withPlusChar ? `+${normalized}` : normalized;
+  }
+  
+  // 5. If none of the above, return null or the original value
+  return null;
 }
 
 module.exports = { normalizeNigeriaPhone };
