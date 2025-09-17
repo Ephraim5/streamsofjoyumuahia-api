@@ -2,8 +2,11 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/sojdb';
-
+const MONGODB_URI =
+  process.env.NODE_ENV === 'production'
+    ? process.env.MONGODB_LIVE_URI
+    : process.env.MONGODB_URI;
+    
 const connectDB = async () => {
   try {
     await mongoose.connect(MONGODB_URI, {
