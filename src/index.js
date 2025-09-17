@@ -18,7 +18,7 @@ const testimonyRoutes = require('./routes/testimonies');
 const soulsRoutes = require('./routes/souls');
 const financeRoutes = require('./routes/finance');
 const shopRoutes = require('./routes/shop');
-
+const path = require('path');
 
 const cloudinary = require('cloudinary').v2;
 cloudinary.config({
@@ -34,7 +34,15 @@ app.use(morgan('dev'));
 
 connectDB();
 
-app.get('/auth/seed-admin', async (req, res) => {
+
+app.use(express.static(path.join(__dirname, '../public')));
+
+app.get('/register', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/register.html'));
+});
+
+
+app.post('/auth/seed-admin', async (req, res) => {
   try {
     const user = await seedSuperAdmin(req.body);
     if(user.isError){

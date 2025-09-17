@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Registration - Streams of Joy</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <style>
+        body {
+            background: linear-gradient(135deg, #0c0c0c 0%, #4c4c4d 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .form-container {
+            max-width: 500px;
+            width: 100%;
+            background-color: #1c1c1c;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
+            animation: fadeIn 0.6s ease-in-out;
+        }
+
+        .form-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .form-header img {
+            width: 180px;
+            margin-bottom: 15px;
+            background: transparent;
+        }
+
+        .form-header h2 {
+            font-size: 22px;
+            color: #fff;
+            margin-bottom: 5px;
+        }
+
+        .form-header p {
+            color: #bbb;
+            margin-bottom: 0;
+        }
+
+        .form-label {
+            color: #ddd;
+        }
+
+        .form-control {
+            background: #2a2a2a;
+            color: #fff;
+            border: 1px solid #444;
+        }
+
+        .form-control:focus {
+            border-color: #007bff;
+            background: #333;
+            color: #fff;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            border: none;
+            transition: 0.3s;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+
+        .alert {
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="form-container">
+        <div class="form-header">
+            <img src="/images/streamsofjoy.png" alt="Streams of Joy Logo" />
+            <h2>Administration Registration</h2>
+            <p>Create a Super Admin account</p>
+        </div>
+
+        <form id="registerForm">
+            <div class="mb-3">
+                <label class="form-label">Approval Code</label>
+                <input name="approveCode" type="text" class="form-control" placeholder="Enter approval code" required />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Title</label>
+                <select name="title" class="form-control">
+                    <option value="Mr">Mr</option>
+                    <option value="Mrs">Mrs</option>
+                    <option value="Miss">Miss</option>
+                    <option value="Pastor">Pastor</option>
+                    <option value="Dr">Dr</option>
+                    <option value="Prof">Prof</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">First Name</label>
+                <input name="firstName" type="text" class="form-control" required />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Middle Name</label>
+                <input name="middleName" type="text" class="form-control" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Surname</label>
+                <input name="surname" type="text" class="form-control" required />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Email</label>
+                <input name="email" type="email" class="form-control" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Phone</label>
+                <input name="phone" type="text" class="form-control" required />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input name="password" type="password" class="form-control" required />
+            </div>
+            <button type="submit" class="btn bg-white w-100">Register</button>
+        </form>
+
+        <div id="responseMsg"></div>
+    </div>
+
+    <script>
+        document.getElementById("registerForm").addEventListener("submit", async function (e) {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+
+            try {
+                const res = await fetch("/auth/seed-admin", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(data),
+                });
+
+                const result = await res.json();
+                const msgDiv = document.getElementById("responseMsg");
+
+                if (res.ok && result.user) {
+                    msgDiv.innerHTML = `<div class="alert alert-success">✅ Registration successful for ${result.user.firstName} ${result.user.surname}</div>`;
+                    form.reset();
+                } else {
+                    msgDiv.innerHTML = `<div class="alert alert-danger">❌ ${result.error || "Failed to register"}</div>`;
+                }
+            } catch (err) {
+                document.getElementById("responseMsg").innerHTML =
+                    `<div class="alert alert-danger">⚠️ Error submitting form</div>`;
+            }
+        });
+    </script>
+</body>
+
+</html>
