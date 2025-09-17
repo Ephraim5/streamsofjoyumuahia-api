@@ -21,7 +21,7 @@ async function sendOtp(req, res) {
             method: 'POST',
             url: 'https://sms-verify3.p.rapidapi.com/send-numeric-verify',
             headers: {
-                'x-rapidapi-key': RAPIDAPI_KEY,
+                'x-rapidapi-key': "f8f15b92eamsh69750d54920ffb6p11e1b2jsn9c8fab99fa0f",
                 'x-rapidapi-host': 'sms-verify3.p.rapidapi.com',
                 'Content-Type': 'application/json'
             },
