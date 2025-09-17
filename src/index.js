@@ -35,10 +35,10 @@ app.use(morgan('dev'));
 connectDB();
 
 
-app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/register', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/register.html'));
+  res.sendFile(path.join(__dirname, 'public/register.html'));
 });
 
 
