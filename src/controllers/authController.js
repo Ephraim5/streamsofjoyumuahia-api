@@ -39,4 +39,4 @@ async function start(req, res) {
 
 // New verify endpoint expects firebase id token
 
-module.exports = { start, verify, signToken };
+module.exports = { start,signToken };
