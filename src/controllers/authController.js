@@ -5,7 +5,6 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
 dotenv.config();
-const firebaseAdmin = require('../config/firebase');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -24,7 +23,7 @@ async function start(req, res) {
     if (!ac) return res.status(400).json({ error: 'Invalid access code',ok:false,goToPhoneNumberScreen:false,goToOtpScreen:false });
     if (ac.used) return res.status(400).json({ error: 'Access code already used',ok:false,goToPhoneNumberScreen:false,goToOtpScreen:false });
     if (new Date() > ac.expiresAt) return res.status(400).json({ error: 'Access code expired' ,ok:false,goToPhoneNumberScreen:false,goToOtpScreen:false});
-    return res.json({ ok: true, message: 'Proceed to verify via Firebase on client',goToPhoneNumberScreen:true,goToOtpScreen:false });
+    return res.json({ ok: true, message: 'Proceed to verify via on client',goToPhoneNumberScreen:true,goToOtpScreen:false });
   }
 
   if (!normalizedPhone) return res.status(400).json({ error: 'Invalid phone',ok:false,goToPhoneNumberScreen:false,goToOtpScreen:false });
@@ -39,26 +38,5 @@ async function start(req, res) {
 }
 
 // New verify endpoint expects firebase id token
-async function verify(req, res) {
-  const { firebaseToken } = req.body;
-  if (!firebaseToken) return res.status(400).json({ error: 'firebaseToken required' });
-  try {
-    const decoded = await firebaseAdmin.auth().verifyIdToken(firebaseToken);
-    const phone = decoded.phone_number;
-    if (!phone) return res.status(400).json({ error: 'Firebase token has no phone' });
-    const normalizedPhone = normalizeNigeriaPhone(phone);
-    let user = await User.findOne({ phone: normalizedPhone });
-    if (!user) {
-      return res.status(404).json({ error: 'Number not registered. Contact your unit head.' });
-    }
-    user.isVerified = true;
-    await user.save();
-    const token = signToken(user);
-    return res.json({ ok: true, token, user });
-  } catch (err) {
-    console.error('verify error', err);
-    return res.status(400).json({ error: 'Invalid firebase token' });
-  }
-}
 
 module.exports = { start, verify, signToken };

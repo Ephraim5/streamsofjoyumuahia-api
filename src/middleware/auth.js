@@ -2,7 +2,6 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const dotenv = require('dotenv');
 dotenv.config();
-const firebaseAdmin = require('../config/firebase');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 

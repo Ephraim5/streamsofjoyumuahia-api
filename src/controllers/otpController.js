@@ -1,104 +1,97 @@
 const axios = require('axios');
 const dotenv = require('dotenv');
-const { normalizeNigeriaPhone } = require('../utils/phone'); // Assuming you have a utility for phone number normalization
+const { normalizeNigeriaPhone } = require('../utils/phone');
+const Otp = require('../models/Otp'); // Your Mongoose model
 
 dotenv.config();
 
-const TERMI_API_KEY = process.env.TERMI_API_KEY;
-const TERMI_SENDER_ID = process.env.TERMI_SENDER_ID;
-const TERMI_BASE_URL = 'https://api.ng.termii.com';
+const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 
-/**
- * Controller to send an OTP to a user's phone number.
- * This function should be called first.
- * @param {object} req - Express request object.
- * @param {object} res - Express response object.
- */
+// ----------------------
+// Send OTP
+// ----------------------
 async function sendOtp(req, res) {
-  const { phone } = req.body;
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ success: false, message: 'Phone number is required.' });
 
-  if (!phone) {
-    return res.status(400).json({ success: false, message: 'Phone number is required.' });
-  }
-  
-  const normalizedPhone = normalizeNigeriaPhone(phone,false);
+    const normalizedPhone = normalizeNigeriaPhone(phone, false);
 
-  const payload = {
-    api_key: TERMI_API_KEY,
-    to: normalizedPhone,
-    from: TERMI_SENDER_ID,
-    channel: 'dnd', // Use 'dnd' for reliable delivery, bypassing DND restrictions.
-    type: 'plain',
-    message_type: 'numeric',
-    pin_attempts: 3, // Number of verification attempts allowed
-    pin_time_to_live: 10, // OTP validity in minutes
-    pin_length: 6, // Length of the OTP
-    message_text: `Your Streams Of Joy Mobile App OTP is <pin_code>. It expires in 10 minutes.`,
-  };
+    try {
+        const options = {
+            method: 'POST',
+            url: 'https://sms-verify3.p.rapidapi.com/send-numeric-verify',
+            headers: {
+                'x-rapidapi-key': RAPIDAPI_KEY,
+                'x-rapidapi-host': 'sms-verify3.p.rapidapi.com',
+                'Content-Type': 'application/json'
+            },
+            data: { target: normalizedPhone }
+        };
 
-  try {
-    const response = await axios.post(`${TERMI_BASE_URL}/api/sms/otp/send`, payload);
+        const response = await axios.request(options);
 
-    if (response.data.code === '1004') { // This code indicates a successful OTP send
-      const pinId = response.data.pinId;
-      // You should save the pinId in your session or user record in your DB
-      // to retrieve it later for verification.
-      return res.status(200).json({ 
-        success: true, 
-        message: 'OTP sent successfully.', 
-        pinId: pinId 
-      });
-    } else {
-      return res.status(400).json({ success: false, message: response.data.message });
+        // The API returns verify_code even if cost is 404
+        const verifyCode = response.data.verify_code;
+
+        if (!verifyCode) {
+            return res.status(500).json({ success: false, message: 'Could not retrieve OTP from API.' });
+        }
+
+        // Save OTP in DB
+        await Otp.create({
+            phone: normalizedPhone,
+            otp: verifyCode,
+            createdAt: new Date()
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: 'OTP sent successfully. Please check your SMS.'
+        });
+
+    } catch (error) {
+        console.error(error.response ? error.response.data : error.message);
+        return res.status(500).json({ success: false, message: 'Could not send OTP.' });
     }
-  } catch (error) {
-    console.error('Termii send OTP error:', error.response ? error.response.data : error.message);
-    return res.status(500).json({ success: false, message: 'Could not send OTP. Please try again.' });
-  }
 }
 
-//---
-
-/**
- * Controller to verify the OTP sent to the user.
- * @param {object} req - Express request object.
- * @param {object} res - Express response object.
- */
+// ----------------------
+// Verify OTP
+// ----------------------
 async function verifyOtp(req, res) {
-  const { pinId, pin } = req.body;
+    const { phone, otp } = req.body;
+    if (!phone || !otp) return res.status(400).json({ success: false, message: 'Phone and OTP are required.' });
 
-  if (!pinId || !pin) {
-    return res.status(400).json({ success: false, message: 'pinId and pin are required.' });
-  }
+    const normalizedPhone = normalizeNigeriaPhone(phone, false);
 
-  const payload = {
-    api_key: TERMI_API_KEY,
-    pin_id: pinId,
-    pin: pin,
-  };
+    // Get the latest OTP for this phone
+    const otpRecord = await Otp.findOne({ phone: normalizedPhone }).sort({ createdAt: -1 });
+    if (!otpRecord) return res.status(400).json({ success: false, message: 'No OTP found for this phone number.' });
 
-  try {
-    const response = await axios.post(`${TERMI_BASE_URL}/api/sms/otp/verify`, payload);
+    const now = new Date();
+    const otpAgeMinutes = (now - otpRecord.createdAt) / 1000 / 60; // in minutes
 
-    if (response.data.verified) {
-      // OTP is valid! Log the user in or proceed with the transaction.
-      // Now you can generate your own JWT for the user session.
-      return res.status(200).json({ 
-        success: true, 
-        message: 'OTP verified successfully.',
-        // You would typically return a JWT token here
-        // token: generateYourAppToken(userId),
-      });
-    } else {
-      return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
+    if (otpAgeMinutes > 10) {
+        // OTP expired
+        await Otp.deleteOne({ _id: otpRecord._id });
+        return res.status(400).json({ success: false, message: 'OTP has expired.' });
     }
-  } catch (error) {
-    console.error('Termii verify OTP error:', error.response ? error.response.data : error.message);
-    return res.status(500).json({ success: false, message: 'Verification failed. Please try again.' });
-  }
+
+    if (otpRecord.otp !== otp) {
+        return res.status(400).json({ success: false, message: 'Invalid OTP.' });
+    }
+
+    // OTP verified successfully
+    await Otp.deleteOne({ _id: otpRecord._id });
+
+    return res.status(200).json({
+        success: true,
+        ok:true,
+        message: 'OTP verified successfully.'
+    });
 }
 
 module.exports = {
-  sendOtp,
-  verifyOtp,
+    sendOtp,
+    verifyOtp
 };

@@ -18,6 +18,7 @@ const testimonyRoutes = require('./routes/testimonies');
 const soulsRoutes = require('./routes/souls');
 const financeRoutes = require('./routes/finance');
 const shopRoutes = require('./routes/shop');
+const otpRoutes = require('./routes/otpRoute');
 const path = require('path');
 
 const cloudinary = require('cloudinary').v2;
@@ -74,6 +75,7 @@ app.get('/', async (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api', otpRoutes);
 app.use('/api/units', unitRoutes);
 app.use('/api/access-codes', accessCodeRoutes);
 app.use('/api/attendance', attendanceRoutes);
