@@ -32,9 +32,10 @@ if (!phone && !accessCode) return res.status(400).json({ok:false,goToPhoneNumber
   let user = await User.findOne({ phone: normalizedPhone });
   if (!user && !accessCode) {
     return res.status(404).json({ ok:false, error: 'Number not registered. Contact your unit head.',goToPhoneNumberScreen:false,goToOtpScreen:false  });
+  }else{
+     return res.status(200).json({ ok: true,user, message: 'Proceed to verify otp on client' ,goToPhoneNumberScreen:false,goToOtpScreen:true});
   }
 
-  return res.json({ ok: true,user, message: 'Proceed to verify otp on client' ,goToPhoneNumberScreen:false,goToOtpScreen:true});
 }
 
 // New verify endpoint expects firebase id token
