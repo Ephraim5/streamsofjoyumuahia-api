@@ -35,7 +35,7 @@ async function start(req, res) {
     return res.status(404).json({ ok:false, error: 'Number not registered. Contact your unit head.',goToPhoneNumberScreen:false,goToOtpScreen:false  });
   }
 
-  return res.json({ ok: true, message: 'Proceed to verify via Firebase on client' ,goToPhoneNumberScreen:false,goToOtpScreen:true});
+  return res.json({ ok: true,user, message: 'Proceed to verify otp on client' ,goToPhoneNumberScreen:false,goToOtpScreen:true});
 }
 
 // New verify endpoint expects firebase id token

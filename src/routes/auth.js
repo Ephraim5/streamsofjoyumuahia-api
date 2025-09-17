@@ -5,7 +5,7 @@ const { authMiddleware } = require('../middleware/auth');
 const User = require('../models/User');
 
 router.post('/start', start); // { phone } or { accessCode }
-router.post('/verify', verify); // { firebaseToken }
+router.post('/verify', verify); // { veryfy otp }
 
 // switch role
 router.post('/switch-role', authMiddleware, async (req, res) => {
