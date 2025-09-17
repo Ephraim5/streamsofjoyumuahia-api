@@ -15,7 +15,7 @@ function signToken(user, activeRole) {
 
 async function start(req, res) {
   const { phone, accessCode } = req.body;
-  if (!phone || !accessCode) return res.status(400).json({ error: 'phone or accessCode required' });
+if (!phone && !accessCode) return res.status(400).json({ok:false,goToPhoneNumberScreen:false,goToOtpScreen:false , error: 'phone or accessCode required' });
   let normalizedPhone = phone ? normalizeNigeriaPhone(phone,true) : null;
 
   if (accessCode) {
