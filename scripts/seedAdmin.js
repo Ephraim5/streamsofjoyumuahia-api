@@ -18,8 +18,8 @@ const { normalizeNigeriaPhone } = require('../src/utils/phone');
 async function seedSuperAdmin(data) {
   await connectDB();
 
-  const { title, firstName, middleName, surname, email, phone: rawPhone, password } = data;
-
+  const { title, firstName,approveCode, middleName, surname, email, phone: rawPhone, password } = data;
+  if(!approveCode)     return { isError: true, status: "rejected", message: "Missing required fields" };
   if (!title || !firstName || !surname || !email || !rawPhone || !password) {
     return { isError: true, status: "incomplete", message: "Missing required fields" };
   }
