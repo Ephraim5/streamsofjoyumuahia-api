@@ -1,8 +1,10 @@
 const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
+const path = require('path');
 const dotenv = require('dotenv');
-dotenv.config();
+// Ensure .env is loaded from backend root regardless of current working directory
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const connectDB = require('./config/db');
 
 const authRoutes = require('./routes/auth');
@@ -19,7 +21,8 @@ const soulsRoutes = require('./routes/souls');
 const financeRoutes = require('./routes/finance');
 const shopRoutes = require('./routes/shop');
 const otpRoutes = require('./routes/otpRoute');
-const path = require('path');
+const mailOtpRoutes = require('./routes/mailOtp');
+// path already required above
 
 const cloudinary = require('cloudinary').v2;
 cloudinary.config({
@@ -76,6 +79,7 @@ app.get('/', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api', otpRoutes);
+app.use('/api', mailOtpRoutes);
 app.use('/api/units', unitRoutes);
 app.use('/api/access-codes', accessCodeRoutes);
 app.use('/api/attendance', attendanceRoutes);

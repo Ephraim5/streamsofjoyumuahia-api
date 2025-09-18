@@ -40,9 +40,12 @@ async function sendOtp(req, res) {
             pin_time_to_live: OTP_EXPIRES_MIN, // minutes
             pin_length: 6,
             channel: 'generic', // or 'dnd', 'whatsapp' if enabled
-            message_text: 'Use {{pin}} to verify your Streams Of Joy Mobile. Expires in {{ttl}} minutes.',
-            from: TERMI_SENDER_ID || 'SOJ Mobile'
+            message_text: 'Use {{pin}} to verify your Streams Of Joy Mobile. Expires in {{ttl}} minutes.'
         };
+        // Only include 'from' when a Sender ID is explicitly configured/approved
+        if (TERMI_SENDER_ID) {
+            payload.from = TERMI_SENDER_ID;
+        }
 
         const { data } = await axios.post('https://api.ng.termii.com/api/sms/otp/generate', payload, {
             headers: { 'Content-Type': 'application/json' }
@@ -117,7 +120,28 @@ async function verifyOtp(req, res) {
         // Success: cleanup record
         await Otp.deleteOne({ _id: otpRecord._id });
 
-        return res.status(200).json({ success: true, ok: true, message: 'OTP verified successfully.' });
+        // Optionally return backend JWT + user if phone belongs to a user
+        try {
+            const User = require('../models/User');
+            const { normalizeNigeriaPhone } = require('../utils/phone');
+            const { signToken } = require('./authController');
+            const normalized = normalizeNigeriaPhone(phone, false);
+            const candidates = [normalized, normalizeNigeriaPhone(phone, true), phone].filter(Boolean);
+            const user = await User.findOne({ phone: { $in: candidates } });
+            if (user) {
+                if (!user.isVerified) {
+                    user.isVerified = true;
+                    await user.save();
+                }
+                const token = signToken(user);
+                return res.status(200).json({ success: true, ok: true, message: 'OTP verified successfully.', token, user, role: user.activeRole || (user.roles?.[0]?.role ?? null) });
+            }
+        } catch (e) {
+            // If any error occurs during enrichment, still return verified response
+            console.warn('Post-verify enrichment failed:', e?.message || e);
+        }
+
+        return res.status(200).json({ success: true, ok: true, message: 'OTP verified successfully.', user: null, role: null });
     } catch (error) {
         const details = error.response?.data || error.message;
         console.error('Termii verifyOtp error:', details);
