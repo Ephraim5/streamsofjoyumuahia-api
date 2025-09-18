@@ -1,6 +1,21 @@
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const { normalizeNigeriaPhone } = require('../utils/phone');
+const AccessCode = require('../models/AccessCode');
+
+// Public minimal email lookup (used by onboarding). Returns limited safe fields.
+async function lookupEmail(req, res) {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ ok: false, message: 'Email required' });
+    const user = await User.findOne({ email: new RegExp('^' + email + '$', 'i') }).lean();
+    if (!user) return res.json({ ok: true, exists: false });
+    const primaryRole = user.activeRole || (user.roles[0] && user.roles[0].role) || null;
+    res.json({ ok: true, exists: true, role: primaryRole, userId: user._id, user: { title: user.title || '', firstName: user.firstName || '', middleName: user.middleName || '', surname: user.surname || '', email: user.email || '', activeRole: user.activeRole, roles: user.roles } });
+  } catch (e) {
+    res.status(500).json({ ok: false, message: 'Lookup failed', error: e.message });
+  }
+}
 
 async function getMe(req, res) {
   const u = await User.findById(req.user._id).lean();
@@ -31,4 +46,4 @@ async function listUsers(req, res) {
   res.json({ users });
 }
 
-module.exports = { getMe, updateUser, listUsers };
+module.exports = { getMe, updateUser, listUsers, lookupEmail };

@@ -67,3 +67,21 @@ Download the backend ZIP included in this workspace and follow setup steps above
 - Shop / Emporium items and sales
 
 These endpoints are mounted under `/api/announcements`, `/api/testimonies`, `/api/souls`, `/api/finance`, `/api/shop`.
+
+## SuperAdmin Email Onboarding Flow (Added)
+To support an email-first SuperAdmin onboarding (separate from phone OTP), the following endpoints were introduced:
+
+- `POST /api/users/lookup-email` – Public minimal lookup. Returns `{ ok, exists, role, userId, user }` where `user` contains safe profile fields.
+- `POST /api/send-mail-otp` & `POST /api/verify-mail-otp` – Email OTP issuance & verification (existing mail OTP controller).
+- `POST /api/auth/complete-superadmin` – Completes registration for a SuperAdmin user that has no `passwordHash` yet, sets password & marks `isVerified`, returns `{ ok, token, user }`.
+
+Mobile sequence:
+1. AccessEmailScreen → user enters email.
+2. If role is `SuperAdmin`, navigate to MailOtpScreen (auto-sends OTP).
+3. On successful OTP verify, navigate to SuperAdminRegistrationScreen prefilled with existing fields.
+4. Submit registration → backend stores password hash & returns JWT.
+
+Security considerations / next steps:
+- Tie `verify-mail-otp` to user id by storing a temporary verification record (future improvement).
+- Add rate limiting / attempt lockouts for repeated OTP failures.
+- Extend same pattern for UnitLeader / Member roles or unify into a generic completion endpoint with role gates.

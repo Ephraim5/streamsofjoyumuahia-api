@@ -48,3 +48,37 @@ async function start(req, res) {
 // New verify endpoint expects firebase id token
 
 module.exports = { start, signToken };
+
+// Complete SuperAdmin registration after email OTP flow (unauthenticated but constrained)
+// Body: { userId, email, title, firstName, middleName, surname, password }
+module.exports.completeSuperAdmin = async (req, res) => {
+  try {
+    const { userId, email, title, firstName, middleName, surname, password } = req.body;
+    if (!userId || !email || !firstName || !surname || !password) {
+      return res.status(400).json({ ok: false, message: 'Missing required fields' });
+    }
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ ok: false, message: 'User not found' });
+    // Must be SuperAdmin role and not yet initialized with a password
+    const hasSuperAdmin = (user.roles || []).some(r=>r.role==='SuperAdmin') || user.activeRole==='SuperAdmin';
+    if (!hasSuperAdmin) return res.status(403).json({ ok: false, message: 'Not a SuperAdmin user' });
+    if (user.passwordHash) return res.status(400).json({ ok: false, message: 'Already completed registration' });
+    if (user.email && user.email.toLowerCase() !== email.toLowerCase()) {
+      return res.status(400).json({ ok: false, message: 'Email mismatch' });
+    }
+    user.email = email.toLowerCase();
+    user.title = title || user.title;
+    user.firstName = firstName || user.firstName;
+    user.middleName = middleName || user.middleName;
+    user.surname = surname || user.surname;
+    const bcrypt = require('bcrypt');
+    user.passwordHash = await bcrypt.hash(password, 10);
+    user.isVerified = true;
+    if (!user.activeRole) user.activeRole = 'SuperAdmin';
+    await user.save();
+    const token = signToken(user, user.activeRole);
+    res.json({ ok: true, token, user });
+  } catch (e) {
+    res.status(500).json({ ok: false, message: 'Registration completion failed', error: e.message });
+  }
+};
