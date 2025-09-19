@@ -1,12 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { start, completeSuperAdmin } = require('../controllers/authController');
+const { start, completeSuperAdmin, login } = require('../controllers/authController');
 const { authMiddleware } = require('../middleware/auth');
 const User = require('../models/User');
 
 router.post('/start', start); // { phone } or { accessCode }
 // Complete SuperAdmin registration (email OTP already verified on client)
 router.post('/complete-superadmin', completeSuperAdmin);
+// Password login (token issued here)
+router.post('/login', login);
 
 // switch role
 router.post('/switch-role', authMiddleware, async (req, res) => {

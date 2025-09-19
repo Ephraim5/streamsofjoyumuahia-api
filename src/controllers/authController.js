@@ -76,9 +76,25 @@ module.exports.completeSuperAdmin = async (req, res) => {
     user.isVerified = true;
     if (!user.activeRole) user.activeRole = 'SuperAdmin';
     await user.save();
-    const token = signToken(user, user.activeRole);
-    res.json({ ok: true, token, user });
+  // Registration no longer returns a JWT. Client must call /api/auth/login afterwards.
+  res.json({ ok: true, userId: user._id });
   } catch (e) {
     res.status(500).json({ ok: false, message: 'Registration completion failed', error: e.message });
+  }
+};
+
+// POST /api/auth/login { userId, password }
+module.exports.login = async (req, res) => {
+  try {
+    const { userId, password } = req.body || {};
+    if (!userId || !password) return res.status(400).json({ ok: false, message: 'userId and password required' });
+    const user = await User.findById(userId);
+    if (!user || !user.passwordHash) return res.status(400).json({ ok: false, message: 'Invalid credentials' });
+    const match = await bcrypt.compare(password, user.passwordHash);
+    if (!match) return res.status(400).json({ ok: false, message: 'Invalid credentials' });
+    const token = signToken(user, user.activeRole);
+    return res.json({ ok: true, token, user: { _id: user._id, firstName: user.firstName, surname: user.surname, activeRole: user.activeRole, isVerified: user.isVerified } });
+  } catch (e) {
+    return res.status(500).json({ ok: false, message: 'Login failed', error: e.message });
   }
 };
