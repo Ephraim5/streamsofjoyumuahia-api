@@ -27,10 +27,7 @@ async function seedSuperAdmin(data) {
   const phone = normalizeNigeriaPhone(rawPhone);
 
   const existing = await User.findOne({ phone });
-  if (existing) {
-    console.log('⚠️ Super admin already exists:', existing.phone);
-    return {isError:false,existing};
-  }
+
   if(!title || !firstName || !middleName || !surname || !email) return  {isError:true, status:"uncomplete"};
 
   const hash = await bcrypt.hash(password, 10);

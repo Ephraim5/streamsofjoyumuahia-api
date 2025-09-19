@@ -2,6 +2,7 @@ const nodemailer = require('nodemailer');
 
 let cachedTransporter = null;
 let transporterVerified = false;
+let cachedFallbackTransporter = null;
 
 class EmailSendError extends Error {
   constructor(message, errorCode, original) {
@@ -12,22 +13,37 @@ class EmailSendError extends Error {
   }
 }
 
-function buildTransporter() {
-  if (cachedTransporter) return cachedTransporter;
-  cachedTransporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'gtxm1088.siteground.biz',
-    port: Number(process.env.SMTP_PORT || 465),
-    secure: (process.env.SMTP_SECURE || 'true') === 'true',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
-    },
-    // Connection timeout & greeting timeout to avoid long hangs
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 15_000
-  });
-  return cachedTransporter;
+function buildTransporter(fallback = false) {
+  if (!fallback) {
+    if (cachedTransporter) return cachedTransporter;
+    cachedTransporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'gtxm1088.siteground.biz',
+      port: Number(process.env.SMTP_PORT || 465),
+      secure: (process.env.SMTP_SECURE || 'true') === 'true',
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
+      logger: process.env.EMAIL_DEBUG === 'true',
+      debug: process.env.EMAIL_DEBUG === 'true'
+    });
+    return cachedTransporter;
+  } else {
+    if (cachedFallbackTransporter) return cachedFallbackTransporter;
+    cachedFallbackTransporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'gtxm1088.siteground.biz',
+      port: 587,
+      secure: false, // STARTTLS
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
+      requireTLS: true,
+      logger: process.env.EMAIL_DEBUG === 'true',
+      debug: process.env.EMAIL_DEBUG === 'true'
+    });
+    return cachedFallbackTransporter;
+  }
 }
 
 async function ensureVerified(transporter) {
@@ -51,9 +67,9 @@ const sendEmail = async (to, subject, html) => {
     return { skipped: true };
   }
   if (!to) throw new Error('Missing recipient');
-  const transporter = buildTransporter();
-  await ensureVerified(transporter);
-  try {
+  const primary = buildTransporter(false);
+  await ensureVerified(primary);
+  const attemptSend = async (transporter, isFallback = false) => {
     const sendPromise = transporter.sendMail({
       from: `"Chantal Ekabe Ministry" <${process.env.EMAIL_USER}>`,
       to,
@@ -64,18 +80,39 @@ const sendEmail = async (to, subject, html) => {
       sendPromise,
       new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP send timeout')), 15_000))
     ]);
-    console.log(`Email sent to ${to}`);
+    console.log(`Email sent to ${to}${isFallback ? ' (fallback)' : ''}`);
     return info;
-  } catch (error) {
-    let code = 'SMTP_UNKNOWN';
-    if (error.message === 'SMTP send timeout') code = 'SMTP_TIMEOUT';
-    else if (/timeout/i.test(error.message)) code = 'SMTP_TIMEOUT';
-    else if (['EAUTH'].includes(error.code)) code = 'SMTP_AUTH';
-    else if (['ENOTFOUND','EAI_AGAIN'].includes(error.code)) code = 'SMTP_DNS';
-    else if (['ECONNECTION','ECONNREFUSED','EHOSTUNREACH','ETIMEDOUT'].includes(error.code)) code = 'SMTP_CONNECT';
-    else if (/self[- ]signed/i.test(error.message)) code = 'SMTP_TLS';
-    console.error('Failed to send email:', { code, err: error.message });
-    throw new EmailSendError('Email delivery failed.', code, error);
+  };
+
+  const classify = (error) => {
+    if (error.message === 'SMTP send timeout') return 'SMTP_TIMEOUT';
+    if (/timeout/i.test(error.message)) return 'SMTP_TIMEOUT';
+    if (['EAUTH'].includes(error.code)) return 'SMTP_AUTH';
+    if (['ENOTFOUND','EAI_AGAIN'].includes(error.code)) return 'SMTP_DNS';
+    if (['ECONNECTION','ECONNREFUSED','EHOSTUNREACH','ETIMEDOUT'].includes(error.code)) return 'SMTP_CONNECT';
+    if (/self[- ]signed/i.test(error.message)) return 'SMTP_TLS';
+    return 'SMTP_UNKNOWN';
+  };
+
+  try {
+    return await attemptSend(primary, false);
+  } catch (err1) {
+    const code1 = classify(err1);
+    const fallbackEligible = ['SMTP_TIMEOUT','SMTP_CONNECT','SMTP_TLS'].includes(code1) && (process.env.SMTP_FALLBACK !== 'false');
+    if (!fallbackEligible) {
+      console.error('Failed to send email (no fallback):', { code: code1, err: err1.message });
+      throw new EmailSendError('Email delivery failed.', code1, err1);
+    }
+    console.warn('Primary SMTP failed, attempting fallback to 587 STARTTLS...', { code: code1 });
+    try {
+      const fb = buildTransporter(true);
+      await ensureVerified(fb);
+      return await attemptSend(fb, true);
+    } catch (err2) {
+      const code2 = classify(err2);
+      console.error('Fallback SMTP failed:', { primaryCode: code1, fallbackCode: code2, err: err2.message });
+      throw new EmailSendError('Email delivery failed.', code2, err2);
+    }
   }
 };
 
