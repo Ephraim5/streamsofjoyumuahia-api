@@ -13,7 +13,10 @@ exports.sendMailOtp = async (req, res) => {
     if (!email || typeof email !== 'string') {
       return res.status(400).json({ ok: false, message: 'Email required.' });
     }
-    email = email.trim().toLowerCase();
+    // Sanitize: trim and strip trailing punctuation that users often add accidentally
+    email = email.trim().toLowerCase().replace(/[\s]+/g,'');
+    // Remove trailing characters like . , ; : if present (common copy/paste artifact)
+    email = email.replace(/[\.,;:]+$/,'');
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       return res.status(400).json({ ok: false, message: 'Invalid email format.' });
     }
