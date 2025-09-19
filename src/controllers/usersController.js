@@ -6,14 +6,45 @@ const AccessCode = require('../models/AccessCode');
 // Public minimal email lookup (used by onboarding). Returns limited safe fields.
 async function lookupEmail(req, res) {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ ok: false, message: 'Email required' });
-    const user = await User.findOne({ email: new RegExp('^' + email + '$', 'i') }).lean();
+    let { email } = req.body || {};
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ ok: false, message: 'Email required' });
+    }
+    email = email.trim();
+    // Basic format check to fail fast (not exhaustive)
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return res.status(400).json({ ok: false, message: 'Invalid email format' });
+    }
+    let regex;
+    try {
+      // Escape special regex chars in email just in case
+      const escaped = email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      regex = new RegExp('^' + escaped + '$', 'i');
+    } catch (rxErr) {
+      console.warn('lookupEmail regex build failed', rxErr);
+      return res.status(400).json({ ok: false, message: 'Invalid email input' });
+    }
+    const user = await User.findOne({ email: regex }).lean();
     if (!user) return res.json({ ok: true, exists: false });
-    const primaryRole = user.activeRole || (user.roles[0] && user.roles[0].role) || null;
-    res.json({ ok: true, exists: true, role: primaryRole, userId: user._id, user: { title: user.title || '', firstName: user.firstName || '', middleName: user.middleName || '', surname: user.surname || '', email: user.email || '', activeRole: user.activeRole, roles: user.roles } });
+    const primaryRole = user.activeRole || (user.roles && user.roles[0] && user.roles[0].role) || null;
+    return res.json({
+      ok: true,
+      exists: true,
+      role: primaryRole,
+      userId: user._id,
+      user: {
+        title: user.title || '',
+        firstName: user.firstName || '',
+        middleName: user.middleName || '',
+        surname: user.surname || '',
+        email: user.email || '',
+        activeRole: user.activeRole || primaryRole,
+        roles: user.roles || []
+      }
+    });
   } catch (e) {
-    res.status(500).json({ ok: false, message: 'Lookup failed', error: e.message });
+    console.error('lookupEmail error', e);
+    return res.status(500).json({ ok: false, message: 'Lookup failed', error: e.message });
   }
 }
 
