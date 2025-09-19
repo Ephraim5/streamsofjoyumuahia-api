@@ -1,4 +1,6 @@
 const nodemailer = require('nodemailer');
+let Resend = null;
+try { Resend = require('resend').Resend; } catch (_) { /* optional */ }
 
 let cachedTransporter = null;
 let transporterVerified = false;
@@ -101,6 +103,22 @@ const sendEmail = async (to, subject, html) => {
     const fallbackEligible = ['SMTP_TIMEOUT','SMTP_CONNECT','SMTP_TLS'].includes(code1) && (process.env.SMTP_FALLBACK !== 'false');
     if (!fallbackEligible) {
       console.error('Failed to send email (no fallback):', { code: code1, err: err1.message });
+      // Try Resend API if configured
+      if (process.env.RESEND_API_KEY && Resend) {
+        try {
+          const resend = new Resend(process.env.RESEND_API_KEY);
+          await resend.emails.send({
+            from: `Chantal Ekabe Ministry <${process.env.RESEND_FROM || process.env.EMAIL_USER}>`,
+            to,
+            subject,
+            html
+          });
+          console.log(`Email sent via Resend API to ${to}`);
+          return { provider: 'resend' };
+        } catch (apiErr) {
+          console.error('Resend API fallback failed:', apiErr.message);
+        }
+      }
       throw new EmailSendError('Email delivery failed.', code1, err1);
     }
     console.warn('Primary SMTP failed, attempting fallback to 587 STARTTLS...', { code: code1 });
@@ -111,6 +129,22 @@ const sendEmail = async (to, subject, html) => {
     } catch (err2) {
       const code2 = classify(err2);
       console.error('Fallback SMTP failed:', { primaryCode: code1, fallbackCode: code2, err: err2.message });
+      // Resend fallback after both SMTP attempts
+      if (process.env.RESEND_API_KEY && Resend) {
+        try {
+          const resend = new Resend(process.env.RESEND_API_KEY);
+          await resend.emails.send({
+            from: `Chantal Ekabe Ministry <${process.env.RESEND_FROM || process.env.EMAIL_USER}>`,
+            to,
+            subject,
+            html
+          });
+          console.log(`Email sent via Resend API to ${to} (after SMTP fallback)`);
+          return { provider: 'resend' };
+        } catch (apiErr) {
+          console.error('Resend API fallback failed:', apiErr.message);
+        }
+      }
       throw new EmailSendError('Email delivery failed.', code2, err2);
     }
   }
