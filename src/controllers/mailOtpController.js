@@ -49,7 +49,10 @@ exports.sendMailOtp = async (req, res) => {
       const code = mailErr && mailErr.errorCode ? mailErr.errorCode : 'SMTP_UNKNOWN';
       const original = mailErr && mailErr.original ? mailErr.original : undefined;
       console.error('[mailOtp] Email dispatch failed', { email, code, err: mailErr.message, original, skip: process.env.SKIP_EMAIL, from: process.env.RESEND_FROM });
-      const payload = { ok: false, message: 'Email delivery failed. Try again shortly.', code };
+      let userMessage = 'Email delivery failed. Try again shortly.';
+      if (code === 'EMAIL_CONFIG_MISSING') userMessage = 'Email service not configured. Contact support.';
+      else if (code === 'EMAIL_DOMAIN_UNVERIFIED') userMessage = 'Email domain not verified. Please wait and retry.';
+      const payload = { ok: false, message: userMessage, code };
       if (process.env.EMAIL_DEBUG === 'true' && original) payload.original = original;
       return res.status(502).json(payload);
     }
