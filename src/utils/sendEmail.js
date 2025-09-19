@@ -3,6 +3,15 @@ const nodemailer = require('nodemailer');
 let cachedTransporter = null;
 let transporterVerified = false;
 
+class EmailSendError extends Error {
+  constructor(message, errorCode, original) {
+    super(message);
+    this.name = 'EmailSendError';
+    this.errorCode = errorCode || 'SMTP_UNKNOWN';
+    if (original) this.original = original.message || String(original);
+  }
+}
+
 function buildTransporter() {
   if (cachedTransporter) return cachedTransporter;
   cachedTransporter = nodemailer.createTransport({
@@ -58,8 +67,15 @@ const sendEmail = async (to, subject, html) => {
     console.log(`Email sent to ${to}`);
     return info;
   } catch (error) {
-    console.error('Failed to send email:', error.message);
-    throw new Error('Email delivery failed.');
+    let code = 'SMTP_UNKNOWN';
+    if (error.message === 'SMTP send timeout') code = 'SMTP_TIMEOUT';
+    else if (/timeout/i.test(error.message)) code = 'SMTP_TIMEOUT';
+    else if (['EAUTH'].includes(error.code)) code = 'SMTP_AUTH';
+    else if (['ENOTFOUND','EAI_AGAIN'].includes(error.code)) code = 'SMTP_DNS';
+    else if (['ECONNECTION','ECONNREFUSED','EHOSTUNREACH','ETIMEDOUT'].includes(error.code)) code = 'SMTP_CONNECT';
+    else if (/self[- ]signed/i.test(error.message)) code = 'SMTP_TLS';
+    console.error('Failed to send email:', { code, err: error.message });
+    throw new EmailSendError('Email delivery failed.', code, error);
   }
 };
 

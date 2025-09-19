@@ -37,9 +37,9 @@ exports.sendMailOtp = async (req, res) => {
         `<div style='font-size:1.2em'>Your verification code is <b>${otp}</b>. It expires in 10 minutes.</div>`
       );
     } catch (mailErr) {
-      // Roll back the OTP doc so user can retry cleanly
-      await MailOtp.deleteOne({ email });
-      return res.status(502).json({ ok: false, message: 'Email delivery failed. Try again shortly.' });
+      await MailOtp.deleteOne({ email }); // rollback
+      const code = mailErr && mailErr.errorCode ? mailErr.errorCode : 'SMTP_UNKNOWN';
+      return res.status(502).json({ ok: false, message: 'Email delivery failed. Try again shortly.', code });
     }
 
     return res.json({ ok: true, message: 'OTP sent to email.' });
