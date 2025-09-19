@@ -51,7 +51,7 @@ exports.sendMailOtp = async (req, res) => {
       return res.status(502).json({ ok: false, message: 'Email delivery failed. Try again shortly.', code });
     }
 
-    return res.json({ ok: true, message: 'OTP sent to email.',role:user?user.activeRole,user });
+    return res.json({ ok: true, message: 'OTP sent to email.', role: user ? user.activeRole : null, user });
   } catch (e) {
     console.error('sendMailOtp error', e);
     return res.status(500).json({ ok: false, message: 'Failed to send OTP.' });
