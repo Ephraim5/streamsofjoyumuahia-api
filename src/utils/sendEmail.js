@@ -15,6 +15,7 @@ class EmailSendError extends Error {
 // Map Resend / fetch style errors into prior SMTP_* codes so callers need no change.
 function classify(err) {
   const msg = (err && err.message) ? err.message : String(err || '');
+  if (/invalid `from` field/i.test(msg)) return 'EMAIL_FROM_INVALID';
   if (/domain is not verified/i.test(msg)) return 'EMAIL_DOMAIN_UNVERIFIED';
   if (/missing resend_api_key/i.test(msg)) return 'EMAIL_CONFIG_MISSING';
   if (/timeout|network/i.test(msg)) return 'SMTP_TIMEOUT';
@@ -42,7 +43,23 @@ const sendEmail = async (to, subject, html) => {
       throw new Error('Missing RESEND_API_KEY');
     }
     const client = resendClient(apiKey);
-    const primaryFrom = configuredFrom || 'no-reply@example.com';
+    let primaryFrom = configuredFrom || 'no-reply@example.com';
+    if (process.env.EMAIL_DEBUG === 'true') {
+      console.log('[email] Raw configuredFrom:', configuredFrom);
+    }
+    // If user passed something like notification.streamsofjoymobile.com (missing @), auto-fix to no-reply@domain
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(primaryFrom)) {
+      // Try to salvage: if it looks like domain without @, prepend no-reply@
+      if (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(primaryFrom)) {
+        primaryFrom = `no-reply@${primaryFrom.replace(/^@+/, '')}`;
+        console.warn('[email] Adjusted malformed from to', primaryFrom);
+      } else {
+        throw new Error('Invalid `from` field pre-validation');
+      }
+    }
+    if (process.env.EMAIL_DEBUG === 'true') {
+      console.log('[email] Using final from address:', primaryFrom);
+    }
     const attempt = async (fromAddr, label='primary') => {
       const result = await client.emails.send({
         from: `Streams Of Joy Mobile <${fromAddr}>`,

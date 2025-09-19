@@ -36,13 +36,13 @@ exports.sendMailOtp = async (req, res) => {
     }
 
     try {
-      await sendEmail(
+      const sendResult = await sendEmail(
         email,
         'Your Streams of Joy Verification Code',
         `<div style='font-size:1.2em'>Your verification code is <b>${otp}</b>. It expires in 10 minutes.</div>`
       );
       if (process.env.EMAIL_DEBUG === 'true') {
-        console.log('[mailOtp] Email dispatch success', { email });
+        console.log('[mailOtp] Email dispatch success', { email, provider: sendResult?.provider, from: sendResult?.from });
       }
     } catch (mailErr) {
       await MailOtp.deleteOne({ email }); // rollback
@@ -50,14 +50,21 @@ exports.sendMailOtp = async (req, res) => {
       const original = mailErr && mailErr.original ? mailErr.original : undefined;
       console.error('[mailOtp] Email dispatch failed', { email, code, err: mailErr.message, original, skip: process.env.SKIP_EMAIL, from: process.env.RESEND_FROM });
       let userMessage = 'Email delivery failed. Try again shortly.';
-      if (code === 'EMAIL_CONFIG_MISSING') userMessage = 'Email service not configured. Contact support.';
-      else if (code === 'EMAIL_DOMAIN_UNVERIFIED') userMessage = 'Email domain not verified. Please wait and retry.';
+  if (code === 'EMAIL_CONFIG_MISSING') userMessage = 'Email service not configured. Contact support.';
+  else if (code === 'EMAIL_DOMAIN_UNVERIFIED') userMessage = 'Email domain not verified. Please wait and retry.';
+  else if (code === 'EMAIL_FROM_INVALID') userMessage = 'Email sender incorrectly configured. Admin please fix from address.';
       const payload = { ok: false, message: userMessage, code };
       if (process.env.EMAIL_DEBUG === 'true' && original) payload.original = original;
       return res.status(502).json(payload);
     }
 
-    return res.json({ ok: true, message: 'OTP sent to email.', role: user ? user.activeRole : null, user });
+    return res.json({
+      ok: true,
+      message: 'OTP sent to email.',
+      role: user ? user.activeRole : null,
+      user,
+      userId: user ? user._id : undefined
+    });
   } catch (e) {
     console.error('sendMailOtp error', e);
     return res.status(500).json({ ok: false, message: 'Failed to send OTP.' });
