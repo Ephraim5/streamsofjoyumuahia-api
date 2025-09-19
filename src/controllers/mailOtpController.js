@@ -1,5 +1,6 @@
 const MailOtp = require('../models/MailOtp');
 const sendEmail = require('../utils/sendEmail');
+const User = require('../models/User');
 
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -19,6 +20,7 @@ exports.sendMailOtp = async (req, res) => {
 
     // Simple throttle: if an OTP was created less than 45 seconds ago, block resend
     const existing = await MailOtp.findOne({ email }).lean();
+    const user = await User.findOne({ email })
     if (existing && Date.now() - new Date(existing.createdAt).getTime() < 45 * 1000) {
       return res.status(429).json({ ok: false, message: 'Please wait before requesting another code.' });
     }
@@ -29,6 +31,9 @@ exports.sendMailOtp = async (req, res) => {
       { email, otp, createdAt: new Date(), attempts: 0 },
       { upsert: true }
     );
+    if (process.env.EMAIL_DEBUG === 'true') {
+      console.log('[mailOtp] Prepared OTP record', { email, otp, createdAt: new Date().toISOString() });
+    }
 
     try {
       await sendEmail(
@@ -36,13 +41,17 @@ exports.sendMailOtp = async (req, res) => {
         'Your Streams of Joy Verification Code',
         `<div style='font-size:1.2em'>Your verification code is <b>${otp}</b>. It expires in 10 minutes.</div>`
       );
+      if (process.env.EMAIL_DEBUG === 'true') {
+        console.log('[mailOtp] Email dispatch success', { email });
+      }
     } catch (mailErr) {
       await MailOtp.deleteOne({ email }); // rollback
       const code = mailErr && mailErr.errorCode ? mailErr.errorCode : 'SMTP_UNKNOWN';
+      console.error('[mailOtp] Email dispatch failed', { email, code, err: mailErr.message, skip: process.env.SKIP_EMAIL, from: process.env.RESEND_FROM });
       return res.status(502).json({ ok: false, message: 'Email delivery failed. Try again shortly.', code });
     }
 
-    return res.json({ ok: true, message: 'OTP sent to email.' });
+    return res.json({ ok: true, message: 'OTP sent to email.',role:user?user.activeRole,user });
   } catch (e) {
     console.error('sendMailOtp error', e);
     return res.status(500).json({ ok: false, message: 'Failed to send OTP.' });

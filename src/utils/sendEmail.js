@@ -37,7 +37,7 @@ const sendEmail = async (to, subject, html) => {
     const client = resendClient();
     const fromAddress = process.env.RESEND_FROM || process.env.EMAIL_USER || 'no-reply@example.com';
     const result = await client.emails.send({
-      from: `Chantal Ekabe Ministry <${fromAddress}>`,
+      from: `Streams Of Joy Mobile <${fromAddress}>`,
       to,
       subject,
       html
