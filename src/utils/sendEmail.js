@@ -38,27 +38,15 @@ const sendEmail = async (to, subject, html) => {
   }
   if (!to) throw new Error('Missing recipient');
   try {
-    const { apiKey, from: configuredFrom } = getResendConfig();
+    const { apiKey } = getResendConfig();
     if (!apiKey) {
       throw new Error('Missing RESEND_API_KEY');
     }
     const client = resendClient(apiKey);
-    let primaryFrom = configuredFrom || 'no-reply@example.com';
+    // Hard-coded test sender as requested (Resend test domain)
+    const primaryFrom = 'onboarding@resend.dev';
     if (process.env.EMAIL_DEBUG === 'true') {
-      console.log('[email] Raw configuredFrom:', configuredFrom);
-    }
-    // If user passed something like notification.streamsofjoymobile.com (missing @), auto-fix to no-reply@domain
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(primaryFrom)) {
-      // Try to salvage: if it looks like domain without @, prepend no-reply@
-      if (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(primaryFrom)) {
-        primaryFrom = `no-reply@${primaryFrom.replace(/^@+/, '')}`;
-        console.warn('[email] Adjusted malformed from to', primaryFrom);
-      } else {
-        throw new Error('Invalid `from` field pre-validation');
-      }
-    }
-    if (process.env.EMAIL_DEBUG === 'true') {
-      console.log('[email] Using final from address:', primaryFrom);
+      console.log('[email] Forcing test sender onboarding@resend.dev (ignoring configured from)');
     }
     const attempt = async (fromAddr, label='primary') => {
       const result = await client.emails.send({
