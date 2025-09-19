@@ -49,8 +49,23 @@ async function lookupEmail(req, res) {
 }
 
 async function getMe(req, res) {
-  const u = await User.findById(req.user._id).lean();
-  res.json({ user: u });
+  const u = await User.findById(req.user._id).select('-passwordHash -__v').lean();
+  res.json({ ok: true, user: u });
+}
+
+// Secure fetch by id (used for profile recovery after login)
+async function getUserById(req, res) {
+  try {
+    const { id } = req.params;
+    if (!id || !id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ ok: false, message: 'Invalid userId format' });
+    }
+    const user = await User.findById(id).select('-passwordHash -__v');
+    if (!user) return res.status(404).json({ ok: false, message: 'User not found' });
+    return res.json({ ok: true, user });
+  } catch (e) {
+    return res.status(500).json({ ok: false, message: 'Lookup failed', error: e.message });
+  }
 }
 
 async function updateUser(req, res) {
@@ -77,4 +92,4 @@ async function listUsers(req, res) {
   res.json({ users });
 }
 
-module.exports = { getMe, updateUser, listUsers, lookupEmail };
+module.exports = { getMe, updateUser, listUsers, lookupEmail, getUserById };
