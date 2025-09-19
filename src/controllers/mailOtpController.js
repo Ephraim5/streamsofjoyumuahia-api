@@ -47,8 +47,11 @@ exports.sendMailOtp = async (req, res) => {
     } catch (mailErr) {
       await MailOtp.deleteOne({ email }); // rollback
       const code = mailErr && mailErr.errorCode ? mailErr.errorCode : 'SMTP_UNKNOWN';
-      console.error('[mailOtp] Email dispatch failed', { email, code, err: mailErr.message, skip: process.env.SKIP_EMAIL, from: process.env.RESEND_FROM });
-      return res.status(502).json({ ok: false, message: 'Email delivery failed. Try again shortly.', code });
+      const original = mailErr && mailErr.original ? mailErr.original : undefined;
+      console.error('[mailOtp] Email dispatch failed', { email, code, err: mailErr.message, original, skip: process.env.SKIP_EMAIL, from: process.env.RESEND_FROM });
+      const payload = { ok: false, message: 'Email delivery failed. Try again shortly.', code };
+      if (process.env.EMAIL_DEBUG === 'true' && original) payload.original = original;
+      return res.status(502).json(payload);
     }
 
     return res.json({ ok: true, message: 'OTP sent to email.', role: user ? user.activeRole : null, user });

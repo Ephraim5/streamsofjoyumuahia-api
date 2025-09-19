@@ -36,6 +36,17 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(morgan('dev'));
 
+// Startup diagnostics (non-sensitive)
+if (process.env.EMAIL_DEBUG === 'true') {
+  const keySet = !!process.env.RESEND_API_KEY;
+  console.log('[startup] Resend key present:', keySet ? 'yes' : 'no');
+  if (keySet) {
+    console.log('[startup] Resend key length:', process.env.RESEND_API_KEY.length);
+  }
+  console.log('[startup] RESEND_FROM:', process.env.RESEND_FROM || '(not set)');
+  console.log('[startup] SKIP_EMAIL:', process.env.SKIP_EMAIL);
+}
+
 connectDB();
 
 
