@@ -37,7 +37,7 @@ app.use(express.json());
 app.use(morgan('dev'));
 
 // Startup diagnostics (non-sensitive)
-if (process.env.EMAIL_DEBUG === 'true') {
+if (process.env.EMAIL_DEBUG === 'true' || process.env.EMAIL_DEBUG === true) {
   const keySet = !!process.env.RESEND_API_KEY;
   console.log('[startup] Resend key present:', keySet ? 'yes' : 'no');
   if (keySet) {
