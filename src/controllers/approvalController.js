@@ -45,16 +45,38 @@ module.exports.approveUser = async (req, res) => {
 module.exports.listPending = async (req, res) => {
   try {
     const actor = req.user;
-    let query = { approved:false, passwordHash: { $exists: true } }; // only those who completed registration
+    const filterType = (req.query.type||'').toString(); // if 'unit-leaders' filter only those
+    let query = { approved:false, passwordHash: { $exists: true } };
+    if (filterType === 'unit-leaders') {
+      query['roles.role'] = 'UnitLeader';
+    }
     const isSuperAdmin = (actor.roles||[]).some(r=>r.role==='SuperAdmin') || actor.activeRole==='SuperAdmin';
     if (!isSuperAdmin) {
-      // restrict to members in leader units
+      // For non super admin (unit leader) restrict to members in their units (original logic)
       const units = await Unit.find({ leaders: actor._id }).select('_id members');
       const memberIds = units.flatMap(u=>u.members.map(m=>m.toString()));
       query._id = { $in: memberIds };
     }
-    const users = await User.find(query).select('firstName surname roles activeRole email approved');
-    res.json({ ok:true, users });
+    let users = await User.find(query)
+      .populate({ path:'roles.unit', select:'name' })
+      .select('firstName surname middleName roles activeRole email approved phone');
+
+    // Map to simplified structure including unit names for UnitLeader roles
+    const mapped = users.map(u => {
+      const leaderRole = (u.roles||[]).find(r=>r.role==='UnitLeader');
+      return {
+        _id: u._id,
+        firstName: u.firstName,
+        surname: u.surname,
+        middleName: u.middleName||'',
+        email: u.email,
+        phone: u.phone,
+        approved: u.approved,
+        roles: (u.roles||[]).map(r=>({ role: r.role, unit: r.unit?{ _id: r.unit._id, name: r.unit.name }:null })),
+        unitLeaderUnit: leaderRole && leaderRole.unit ? { _id: leaderRole.unit._id, name: leaderRole.unit.name } : null
+      };
+    });
+    res.json({ ok:true, users: mapped });
   } catch (e) {
     console.error('listPending error', e);
     res.status(500).json({ ok:false, message:'Failed', error:e.message });

@@ -6,6 +6,7 @@ const dotenv = require('dotenv');
 // Ensure .env is loaded from backend root regardless of current working directory
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const connectDB = require('./config/db');
+const { seedUnits } = require('../scripts/seedUnits');
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -47,7 +48,18 @@ if (process.env.EMAIL_DEBUG === 'true' || process.env.EMAIL_DEBUG === true) {
   console.log('[startup] SKIP_EMAIL:', process.env.SKIP_EMAIL);
 }
 
-connectDB();
+connectDB().then(async () => {
+  try {
+    const result = await seedUnits();
+    if (result?.created >= 0) {
+      console.log(`[startup] Default units seeding completed. Created: ${result.created}`);
+    } else if (result?.error) {
+      console.warn('[startup] Default units seeding error:', result.error);
+    }
+  } catch (e) {
+    console.warn('[startup] Failed to seed default units:', e.message);
+  }
+});
 
 
 app.use(express.static(path.join(__dirname, 'public')));

@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
+const Unit = require('../models/Unit');
 const { normalizeNigeriaPhone } = require('../utils/phone');
 const AccessCode = require('../models/AccessCode');
 
@@ -115,4 +116,119 @@ async function listUsers(req, res) {
   res.json({ users });
 }
 
-module.exports = { getMe, updateUser, listUsers, lookupEmail, getUserById, changePassword };
+// POST /api/users/:id/add-role  { role, unitId? }
+async function addRole(req, res) {
+  try {
+    const { id } = req.params;
+    const { role, unitId } = req.body || {};
+    if (!id) return res.status(400).json({ ok:false, message:'id required' });
+    if (!role) return res.status(400).json({ ok:false, message:'role required' });
+    const allowed = ['UnitLeader','Member','PastorUnit'];
+    if (!allowed.includes(role)) return res.status(400).json({ ok:false, message:'Invalid role choice' });
+    // Only allow self-modification & only if user is SuperAdmin (explicit requirement)
+    if (req.user._id.toString() !== id) return res.status(403).json({ ok:false, message:'Can only add role to self' });
+    const isSuperAdmin = (req.user.roles||[]).some(r=>r.role==='SuperAdmin') || req.user.activeRole==='SuperAdmin';
+    if (!isSuperAdmin) return res.status(403).json({ ok:false, message:'Only SuperAdmin can add roles' });
+
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ ok:false, message:'User not found' });
+
+    // Prevent duplicate (same role+unit) entries
+    if (role === 'PastorUnit') {
+      const already = (user.roles||[]).some(r=>r.role==='PastorUnit');
+      if (already) return res.status(400).json({ ok:false, message:'PastorUnit role already exists' });
+      user.roles.push({ role, unit: null });
+      await user.save();
+      return res.json({ ok:true, user: await User.findById(id).select('-passwordHash -__v') });
+    }
+
+    if (!unitId) return res.status(400).json({ ok:false, message:'unitId required for this role' });
+    const unit = await Unit.findById(unitId);
+    if (!unit) return res.status(404).json({ ok:false, message:'Unit not found' });
+
+    const hasSame = (user.roles||[]).some(r=>r.role===role && r.unit && r.unit.toString()===unitId);
+    if (hasSame) return res.status(400).json({ ok:false, message:`User already has ${role} role for this unit` });
+
+    if (role === 'UnitLeader') {
+      // Uniqueness: only one leader for a unit (unless it's this user already)
+      if (unit.leaders.length && !unit.leaders.some(l=>l.toString()===user._id.toString())) {
+        return res.status(400).json({ ok:false, message:'Unit already has a leader' });
+      }
+      // Add user to unit.leaders if not present
+      if (!unit.leaders.some(l=>l.toString()===user._id.toString())) {
+        unit.leaders.push(user._id);
+      }
+      user.roles.push({ role: 'UnitLeader', unit: unit._id });
+      await unit.save();
+    } else if (role === 'Member') {
+      // Members can be many. Add to members array if not present.
+      if (!unit.members.some(m=>m.toString()===user._id.toString())) {
+        unit.members.push(user._id);
+        await unit.save();
+      }
+      user.roles.push({ role: 'Member', unit: unit._id });
+    }
+    await user.save();
+    const sanitized = await User.findById(id).select('-passwordHash -__v');
+    return res.json({ ok:true, user: sanitized });
+  } catch (e) {
+    console.error('addRole error', e);
+    return res.status(500).json({ ok:false, message:'Failed to add role', error:e.message });
+  }
+}
+
+// Create additional Super Admin initiated by existing SuperAdmin
+async function createSuperAdmin(req, res) {
+  try {
+    const actor = req.user;
+    const isSuperAdmin = (actor.roles||[]).some(r=>r.role==='SuperAdmin') || actor.activeRole==='SuperAdmin';
+    if (!isSuperAdmin) return res.status(403).json({ ok:false, message:'Forbidden' });
+    let { email, title, firstName, middleName, surname } = req.body || {};
+    if (!email || !firstName || !surname) return res.status(400).json({ ok:false, message:'email, firstName, surname required' });
+    email = email.trim();
+    const existing = await User.findOne({ email: new RegExp('^'+email+'$', 'i') });
+    if (existing) return res.status(400).json({ ok:false, message:'Email already exists' });
+    const tempPhone = `+234000${Date.now()}`.slice(0,14);
+    const user = await User.create({
+      email,
+      title: title||'',
+      firstName,
+      middleName: middleName||'',
+      surname,
+      phone: tempPhone,
+      isVerified: false,
+      approved: false,
+      roles: [{ role: 'SuperAdmin', unit: null }],
+      activeRole: 'SuperAdmin'
+    });
+    return res.json({ ok:true, user: await User.findById(user._id).select('-passwordHash -__v') });
+  } catch (e) {
+    console.error('createSuperAdmin error', e);
+    return res.status(500).json({ ok:false, message:'Failed to create super admin', error:e.message });
+  }
+}
+
+// Reject (delete) a pending user (SuperAdmin only)
+async function rejectUser(req, res) {
+  try {
+    const actor = req.user;
+    const isSuperAdmin = (actor.roles||[]).some(r=>r.role==='SuperAdmin') || actor.activeRole==='SuperAdmin';
+    if (!isSuperAdmin) return res.status(403).json({ ok:false, message:'Forbidden' });
+    const { userId } = req.body || {};
+    if (!userId) return res.status(400).json({ ok:false, message:'userId required' });
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ ok:false, message:'User not found' });
+    if (user.approved) return res.status(400).json({ ok:false, message:'Cannot reject an approved user' });
+    const roleUnits = (user.roles||[]).filter(r=>r.unit).map(r=>r.unit);
+    if (roleUnits.length) {
+      await Unit.updateMany({ _id: { $in: roleUnits } }, { $pull: { leaders: user._id, members: user._id } });
+    }
+    await user.deleteOne();
+    return res.json({ ok:true, userId });
+  } catch (e) {
+    console.error('rejectUser error', e);
+    return res.status(500).json({ ok:false, message:'Failed to reject user', error:e.message });
+  }
+}
+
+module.exports = { getMe, updateUser, listUsers, lookupEmail, getUserById, changePassword, addRole, createSuperAdmin, rejectUser };
