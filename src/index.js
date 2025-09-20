@@ -23,6 +23,7 @@ const financeRoutes = require('./routes/finance');
 const shopRoutes = require('./routes/shop');
 const otpRoutes = require('./routes/otpRoute');
 const mailOtpRoutes = require('./routes/mailOtp');
+const supportRoutes = require('./routes/support');
 // path already required above
 
 const cloudinary = require('cloudinary').v2;
@@ -125,6 +126,7 @@ app.use('/api/testimonies', testimonyRoutes);
 app.use('/api/souls', soulsRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/shop', shopRoutes);
+app.use('/api/support', supportRoutes);
 
 // Lightweight health endpoint to verify cloudinary configuration (non-sensitive)
 app.get('/api/health/cloudinary', (req, res) => {
