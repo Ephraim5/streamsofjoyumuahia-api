@@ -37,4 +37,14 @@ async function listUnits(req, res) {
   res.json({ units });
 }
 
-module.exports = { createUnit, addMember, listUnits };
+// Public listing (no auth) for registration wizard
+async function listUnitsPublic(req, res) {
+  try {
+    const units = await Unit.find({}, 'name').sort({ name: 1 });
+    return res.json({ ok: true, units });
+  } catch (e) {
+    return res.status(500).json({ ok: false, message: 'Failed to load units' });
+  }
+}
+
+module.exports = { createUnit, addMember, listUnits, listUnitsPublic };

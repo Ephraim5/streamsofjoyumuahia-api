@@ -62,7 +62,7 @@ module.exports.completeSuperAdmin = async (req, res) => {
     // Must be SuperAdmin role and not yet initialized with a password
     const hasSuperAdmin = (user.roles || []).some(r=>r.role==='SuperAdmin') || user.activeRole==='SuperAdmin';
     if (!hasSuperAdmin) return res.status(403).json({ ok: false, message: 'Not a SuperAdmin user' });
-    if (user.passwordHash) return res.status(400).json({ ok: false, message: 'Already completed registration' });
+    if (user.isVerified) return res.status(400).json({ ok: false, message: 'Already completed registration' });
     if (user.email && user.email.toLowerCase() !== email.toLowerCase()) {
       return res.status(400).json({ ok: false, message: 'Email mismatch' });
     }

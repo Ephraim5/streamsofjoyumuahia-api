@@ -1,6 +1,7 @@
 const MailOtp = require('../models/MailOtp');
 const sendEmail = require('../utils/sendEmail');
 const User = require('../models/User');
+const Unit = require('../models/Unit');
 
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -127,18 +128,37 @@ exports.completeRegularRegistration = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ ok: false, message: 'User not found' });
     if (user.passwordHash) return res.status(400).json({ ok: false, message: 'Already completed registration' });
-    user.firstName = firstName;
+  user.firstName = firstName;
     user.surname = surname;
     user.middleName = middleName || '';
     user.activeRole = activeRole;
     // roles assignment
+    // Build roles with unit references where applicable
+    const roleEntries = [];
     if (activeRole === 'UnitLeader') {
-      user.roles.push({ role: 'UnitLeader' });
+      if (unitsLed.length === 0) {
+        // allow but warn via log
+        console.warn('[completeRegularRegistration] UnitLeader with no unitsLed supplied', userId);
+      }
+      unitsLed.forEach(uId => roleEntries.push({ role: 'UnitLeader', unit: uId }));
+      // Members list can also optionally be provided (dual membership)
+      unitsMember.forEach(uId => roleEntries.push({ role: 'Member', unit: uId }));
     } else if (activeRole === 'Member') {
-      user.roles.push({ role: 'Member' });
+      // Plain member; allow multi-unit membership if provided
+      if (unitsMember.length === 0) {
+        console.warn('[completeRegularRegistration] Member with no unitsMember supplied', userId);
+      }
+      unitsMember.forEach(uId => roleEntries.push({ role: 'Member', unit: uId }));
     } else if (activeRole === 'PastorUnit') {
-      user.roles.push({ role: 'PastorUnit' });
+      // PastorUnit currently not tied to specific unit, but accept optional unitsLed for future linking
+      if (unitsLed.length) {
+        unitsLed.forEach(uId => roleEntries.push({ role: 'PastorUnit', unit: uId }));
+      } else {
+        roleEntries.push({ role: 'PastorUnit' });
+      }
     }
+    // Merge with any existing roles (should be empty at this stage)
+    user.roles = (user.roles || []).concat(roleEntries);
     // profile extras
     user.profile = user.profile || {};
     if (gender) user.profile.gender = gender;
@@ -151,6 +171,18 @@ exports.completeRegularRegistration = async (req, res) => {
     user.isVerified = true;
     user.approved = false; // must be approved by SuperAdmin or UnitLeader (if member)
     await user.save();
+
+    // Update Unit documents to reflect leadership / membership
+    const unitOps = [];
+    unitsLed.forEach(uId => {
+      unitOps.push(Unit.updateOne({ _id: uId }, { $addToSet: { leaders: user._id } }).exec());
+    });
+    unitsMember.forEach(uId => {
+      unitOps.push(Unit.updateOne({ _id: uId }, { $addToSet: { members: user._id } }).exec());
+    });
+    if (unitOps.length) {
+      try { await Promise.all(unitOps); } catch (e) { console.error('Unit linking failed', e.message); }
+    }
     return res.json({ ok: true, userId: user._id, approved: user.approved });
   } catch (e) {
     console.error('completeRegularRegistration error', e);
