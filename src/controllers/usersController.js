@@ -70,20 +70,43 @@ async function getUserById(req, res) {
 
 async function updateUser(req, res) {
   const id = req.params.id;
-  const payload = req.body;
-  // Only allow user or admin to update
-  if (req.user._id.toString() !== id && !(req.user.roles || []).some(r=>r.role==='SuperAdmin')) {
-    return res.status(403).json({ error: 'Forbidden' });
+  // Only allow user or super admin to update
+  if (req.user._id.toString() !== id && !(req.user.roles || []).some(r => r.role === 'SuperAdmin')) {
+    return res.status(403).json({ ok: false, message: 'Forbidden' });
+  }
+  const allowed = ['firstName', 'middleName', 'surname', 'title', 'phone'];
+  const payload = {};
+  for (const k of allowed) {
+    if (req.body[k] !== undefined) payload[k] = req.body[k];
   }
   if (payload.phone) {
     payload.phone = normalizeNigeriaPhone(payload.phone);
   }
-  if (payload.password) {
-    payload.passwordHash = await bcrypt.hash(payload.password, 10);
-    delete payload.password;
+  const user = await User.findByIdAndUpdate(id, payload, { new: true }).select('-passwordHash -__v');
+  return res.json({ ok: true, user });
+}
+
+async function changePassword(req, res) {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ ok: false, message: 'currentPassword and newPassword required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ ok: false, message: 'Password must be at least 6 characters' });
+    }
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ ok: false, message: 'User not found' });
+    const match = await bcrypt.compare(currentPassword, user.passwordHash || '');
+    if (!match) {
+      return res.status(400).json({ ok: false, message: 'Current password incorrect' });
+    }
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await user.save();
+    return res.json({ ok: true, message: 'Password updated' });
+  } catch (e) {
+    return res.status(500).json({ ok: false, message: 'Failed to change password', error: e.message });
   }
-  const user = await User.findByIdAndUpdate(id, payload, { new: true });
-  res.json({ user });
 }
 
 async function listUsers(req, res) {
@@ -92,4 +115,4 @@ async function listUsers(req, res) {
   res.json({ users });
 }
 
-module.exports = { getMe, updateUser, listUsers, lookupEmail, getUserById };
+module.exports = { getMe, updateUser, listUsers, lookupEmail, getUserById, changePassword };
