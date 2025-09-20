@@ -70,4 +70,45 @@ async function getLegal(req,res){
   }
 }
 
-module.exports = { createTicket, listTickets, getLegal };
+// Utility: seed or overwrite legal pages with provided or default structured content
+async function seedLegal(req, res){
+  try {
+    const { overwrite } = req.body || {};
+    const defaults = {
+      terms: {
+        title: 'Terms of Use',
+        sections: [
+          { heading: 'Welcome', body: 'Welcome to the Streams of Joy mobile app! By using our services, you agree to the following terms. Please read them carefully.' },
+          { heading: 'Acceptable Use', body: 'Use the app responsibly and lawfully. Do not engage in any activity that could harm the app, its users, or third parties.' },
+          { heading: 'Account Security', body: 'Keep your account credentials secure. You are responsible for all activities under your account.' }
+        ]
+      },
+      privacy: {
+        title: 'Privacy Policy',
+        sections: [
+          { heading: 'Your Privacy Matters', body: 'Your privacy is important to us. This policy explains how we collect, use, and protect your information.' },
+          { heading: 'What Data We Collect', body: 'We collect information you provide, such as your name, email, and usage data. We may also collect device information and IP addresses.' },
+          { heading: 'How we Use Your Data', body: 'We use your data to provide and improve our services, personalize your experience, and communicate with you. We do not sell your data to third parties.' },
+          { heading: 'Data Security', body: 'We implement security measures to protect your data from unauthorized access, alteration, or disclosure. However, no method is completely secure.' }
+        ]
+      }
+    };
+    for (const type of Object.keys(defaults)){
+      let existing = await LegalPage.findOne({ type });
+      if(!existing){
+        await LegalPage.create({ type, ...defaults[type], lastUpdated: new Date() });
+      } else if (overwrite){
+        existing.title = defaults[type].title;
+        existing.sections = defaults[type].sections;
+        existing.lastUpdated = new Date();
+        await existing.save();
+      }
+    }
+    return res.json({ ok:true, message:'Legal pages seeded', overwrite: !!overwrite });
+  } catch(e){
+    console.error('seedLegal error', e);
+    return res.status(500).json({ ok:false, message:'Failed to seed legal content' });
+  }
+}
+
+module.exports = { createTicket, listTickets, getLegal, seedLegal };
