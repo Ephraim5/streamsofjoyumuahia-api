@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const RoleSchema = new mongoose.Schema({
-  role: { type: String, enum: ['SuperAdmin','UnitLeader','Member'], required: true },
+  role: { type: String, enum: ['SuperAdmin','UnitLeader','Member','PastorUnit'], required: true },
   unit: { type: mongoose.Schema.Types.ObjectId, ref: 'Unit', default: null },
   duties: { type: [String], default: [] }
 });
@@ -26,7 +26,8 @@ const UserSchema = new mongoose.Schema({
     education: String,
     avatar: String
   },
-  activeRole: { type: String, enum: ['SuperAdmin','UnitLeader','Member'], default: null },
+  approved: { type: Boolean, default: false }, // business approval separate from identity verification
+  activeRole: { type: String, enum: ['SuperAdmin','UnitLeader','Member','PastorUnit'], default: null },
   createdAt: { type: Date, default: Date.now }
 });
 

@@ -92,9 +92,68 @@ exports.verifyMailOtp = async (req, res) => {
       return res.status(400).json({ ok: false, message: 'Invalid OTP.' });
     }
     await MailOtp.deleteOne({ _id: rec._id });
-    return res.json({ ok: true, message: 'Email verified.' });
+    // If a user already exists we just return its id; else create minimal pending user
+    let user = await User.findOne({ email });
+    if (!user) {
+      user = await User.create({
+        email,
+        firstName: 'Pending',
+        surname: 'User',
+        phone: 'PENDING_' + Date.now(), // placeholder to satisfy required phone; will update later
+        isVerified: true,
+        approved: false,
+        roles: [],
+        activeRole: null
+      });
+    }
+    return res.json({ ok: true, message: 'Email verified.', userId: user._id, existing: !!user.passwordHash, approved: user.approved });
   } catch (e) {
     console.error('verifyMailOtp error', e);
     return res.status(500).json({ ok: false, message: 'Verification failed.' });
+  }
+};
+
+// POST /api/auth/complete-regular { userId, firstName, surname, middleName, activeRole, unitsLed[], unitsMember[], gender, dob, occupation, employmentStatus, maritalStatus, password }
+exports.completeRegularRegistration = async (req, res) => {
+  try {
+    const {
+      userId, firstName, surname, middleName, activeRole,
+      unitsLed = [], unitsMember = [], gender, dob, occupation,
+      employmentStatus, maritalStatus, password
+    } = req.body || {};
+    if (!userId || !firstName || !surname || !activeRole || !password) {
+      return res.status(400).json({ ok: false, message: 'Missing required fields' });
+    }
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ ok: false, message: 'User not found' });
+    if (user.passwordHash) return res.status(400).json({ ok: false, message: 'Already completed registration' });
+    user.firstName = firstName;
+    user.surname = surname;
+    user.middleName = middleName || '';
+    user.activeRole = activeRole;
+    // roles assignment
+    if (activeRole === 'UnitLeader') {
+      user.roles.push({ role: 'UnitLeader' });
+    } else if (activeRole === 'Member') {
+      user.roles.push({ role: 'Member' });
+    } else if (activeRole === 'PastorUnit') {
+      user.roles.push({ role: 'PastorUnit' });
+    }
+    // profile extras
+    user.profile = user.profile || {};
+    if (gender) user.profile.gender = gender;
+    if (dob) user.profile.dob = new Date(dob);
+    if (occupation) user.profile.occupation = occupation;
+    if (employmentStatus) user.profile.employmentStatus = employmentStatus;
+    if (maritalStatus) user.profile.maritalStatus = maritalStatus;
+    // password
+    user.passwordHash = await require('bcrypt').hash(password, 10);
+    user.isVerified = true;
+    user.approved = false; // must be approved by SuperAdmin or UnitLeader (if member)
+    await user.save();
+    return res.json({ ok: true, userId: user._id, approved: user.approved });
+  } catch (e) {
+    console.error('completeRegularRegistration error', e);
+    return res.status(500).json({ ok: false, message: 'Completion failed', error: e.message });
   }
 };

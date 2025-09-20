@@ -92,8 +92,22 @@ module.exports.login = async (req, res) => {
     if (!user || !user.passwordHash) return res.status(400).json({ ok: false, message: 'Invalid credentials' });
     const match = await bcrypt.compare(password, user.passwordHash);
     if (!match) return res.status(400).json({ ok: false, message: 'Invalid credentials' });
-    const token = signToken(user, user.activeRole);
-    return res.json({ ok: true, token, user: { _id: user._id, firstName: user.firstName, surname: user.surname, activeRole: user.activeRole, isVerified: user.isVerified } });
+    // Derive active role fallback if not set
+    const activeRole = user.activeRole || (user.roles[0] && user.roles[0].role) || null;
+    const token = signToken(user, activeRole);
+    return res.json({
+      ok: true,
+      token,
+      user: {
+        _id: user._id,
+        firstName: user.firstName,
+        surname: user.surname,
+        activeRole,
+        roles: (user.roles || []).map(r => r.role),
+        approved: user.approved,
+        isVerified: user.isVerified
+      }
+    });
   } catch (e) {
     return res.status(500).json({ ok: false, message: 'Login failed', error: e.message });
   }
