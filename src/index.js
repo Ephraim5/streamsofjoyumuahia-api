@@ -26,11 +26,22 @@ const mailOtpRoutes = require('./routes/mailOtp');
 // path already required above
 
 const cloudinary = require('cloudinary').v2;
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || '',
-  api_key: process.env.CLOUDINARY_API_KEY || '',
-  api_secret: process.env.CLOUDINARY_API_SECRET ? process.env.CLOUDINARY_API_SECRET.replace(/\\n/g, '\n') : ''
-});
+// Cloudinary configuration:
+// Prefer explicit vars, but allow single CLOUDINARY_URL fallback (cloudinary://key:secret@cloudname)
+if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET.replace(/\\n/g, '\n'),
+    secure: true
+  });
+} else if (process.env.CLOUDINARY_URL) {
+  // Let SDK parse CLOUDINARY_URL
+  cloudinary.config({ secure: true });
+  console.log('[cloudinary] Using CLOUDINARY_URL fallback (ensure this is not committed)');
+} else {
+  console.warn('[cloudinary] Missing Cloudinary credentials. Uploads will fail until env vars are set.');
+}
 
 const app = express();
 app.use(cors({ origin: '*' }));
@@ -115,32 +126,58 @@ app.use('/api/souls', soulsRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/shop', shopRoutes);
 
+// Lightweight health endpoint to verify cloudinary configuration (non-sensitive)
+app.get('/api/health/cloudinary', (req, res) => {
+  try {
+    const cfg = cloudinary.config();
+    return res.json({
+      ok: true,
+      cloud_name: cfg.cloud_name ? 'set' : 'missing',
+      secure: cfg.secure === true,
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
 
 // Cloudinary upload endpoint for profile images
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const User = require('./models/User');
 const { run, seedSuperAdmin } = require('../scripts/seedAdmin');
-app.post('/api/upload/profile', upload.single('file'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'file required' });
-  const { userId } = req.body;
-  if (!userId) return res.status(400).json({ error: 'userId required' });
-  try {
-    const result = await cloudinary.uploader.upload_stream({ resource_type: 'image', folder: 'soj_profiles' }, async (error, result) => {
-      if (error) return res.status(500).json({ error: 'Cloudinary upload failed', details: error });
-      // save to user
-      const user = await User.findById(userId);
-      if (!user) return res.status(404).json({ error: 'User not found' });
-      user.profile = user.profile || {};
-      user.profile.avatar = result.secure_url;
-      await user.save();
-      return res.json({ ok: true, url: result.secure_url });
+// Helper to wrap upload_stream in a Promise
+function uploadBufferToCloudinary(buffer, options = {}) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(options, (err, result) => {
+      if (err) return reject(err);
+      resolve(result);
     });
-    // pipe buffer
-    const stream = result;
+    stream.end(buffer);
+  });
+}
+
+app.post('/api/upload/profile', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ ok: false, error: 'file required' });
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ ok: false, error: 'userId required' });
+  try {
+    if (!cloudinary.config().cloud_name) {
+      return res.status(500).json({ ok: false, error: 'Cloudinary not configured on server' });
+    }
+    const result = await uploadBufferToCloudinary(req.file.buffer, {
+      resource_type: 'image',
+      folder: 'soj_profiles',
+      transformation: [{ width: 512, height: 512, crop: 'limit' }]
+    });
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ ok: false, error: 'User not found' });
+    user.profile = user.profile || {};
+    user.profile.avatar = result.secure_url;
+    await user.save();
+    return res.json({ ok: true, url: result.secure_url });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Upload failed' });
+    console.error('[cloudinary] upload error', err);
+    return res.status(500).json({ ok: false, error: 'Upload failed', details: err?.message });
   }
 });
 
