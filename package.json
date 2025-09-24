@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "seed:admin": "node scripts/seedAdmin.js"
+    "seed:admin": "node scripts/seedAdmin.js",
+    "migrate:backfill-souls-refs": "node scripts/migrations/backfill-souls-refs.js",
+    "migrate:backfill-souls-refs:apply": "node scripts/migrations/backfill-souls-refs.js --apply"
   },
   "keywords": [],
   "author": "",

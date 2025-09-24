@@ -28,6 +28,9 @@ const invitesRoutes = require('./routes/invites');
 const summaryRoutes = require('./routes/summary');
 const achievementsRoutes = require('./routes/achievements');
 const assistsRoutes = require('./routes/assists');
+const songsRoutes = require('./routes/songs');
+const marriagesRoutes = require('./routes/marriages');
+const recoveredAddictsRoutes = require('./routes/recoveredAddicts');
 // path already required above
 
 const cloudinary = require('cloudinary').v2;
@@ -135,6 +138,9 @@ app.use('/api/invites', invitesRoutes);
 app.use('/api/summary', summaryRoutes);
 app.use('/api/achievements', achievementsRoutes);
 app.use('/api/assists', assistsRoutes);
+app.use('/api/songs', songsRoutes);
+app.use('/api/marriages', marriagesRoutes);
+app.use('/api/recovered-addicts', recoveredAddictsRoutes);
 
 // Lightweight health endpoint to verify cloudinary configuration (non-sensitive)
 app.get('/api/health/cloudinary', (req, res) => {

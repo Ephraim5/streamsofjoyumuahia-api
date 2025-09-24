@@ -7,7 +7,15 @@ const Soul = require('../models/Soul');
 async function addSoul(req, res) {
   const { name, phone, unitId, dateWon, gender, ageRange, convertedThrough, location } = req.body;
   if (!name) return res.status(400).json({ ok:false, message:'Name required' });
-  const s = await Soul.create({ name, phone, gender, ageRange, convertedThrough, location, unit: unitId, addedBy: req.user._id, dateWon: dateWon||new Date() });
+  // derive unit from active role if not provided
+  let unit = unitId;
+  if (!unit) {
+    const roles = req.user.roles || [];
+    const act = req.user.activeRole;
+    const active = roles.find(r => r.role === act && r.unit) || roles.find(r=>r.unit);
+    if (active && active.unit) unit = active.unit;
+  }
+  const s = await Soul.create({ name, phone, gender, ageRange, convertedThrough, location, unit, addedBy: req.user._id, dateWon: dateWon||new Date() });
   res.json({ ok: true, soul: s });
 }
 
