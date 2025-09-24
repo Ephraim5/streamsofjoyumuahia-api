@@ -26,9 +26,9 @@ async function createSong(req,res){
     const user = req.user;
     const unitId = resolveActiveUnit(user);
     if(!unitId) return res.status(400).json({ ok:false, message:'Active unit required' });
-    const { title, composer, vocalLeads, link, releaseDate } = req.body||{};
+  const { title, composer, vocalLeads, link, releaseDate, description } = req.body||{};
     if(!title) return res.status(400).json({ ok:false, message:'title required' });
-    const doc = await Song.create({ title, composer, vocalLeads, link, releaseDate: releaseDate? new Date(releaseDate): undefined, unit: unitId, addedBy: user._id });
+  const doc = await Song.create({ title, composer, vocalLeads, link, description, releaseDate: releaseDate? new Date(releaseDate): undefined, unit: unitId, addedBy: user._id });
     return res.json({ ok:true, song: doc });
   } catch(e){
     console.error('createSong error', e);
@@ -39,7 +39,7 @@ async function createSong(req,res){
 async function updateSong(req,res){
   try {
     const { id } = req.params;
-    const updates = { ...req.body };
+  const updates = { ...req.body };
     if(updates.releaseDate) updates.releaseDate = new Date(updates.releaseDate);
     const doc = await Song.findByIdAndUpdate(id, updates, { new: true });
     return res.json({ ok:true, song: doc });

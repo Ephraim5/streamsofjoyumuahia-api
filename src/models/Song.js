@@ -5,6 +5,7 @@ const SongSchema = new mongoose.Schema({
   composer: { type: String },
   vocalLeads: { type: String },
   link: { type: String },
+  description: { type: String },
   releaseDate: { type: Date },
   unit: { type: mongoose.Schema.Types.ObjectId, ref: 'Unit', required: true },
   addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
