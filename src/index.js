@@ -26,6 +26,7 @@ const mailOtpRoutes = require('./routes/mailOtp');
 const supportRoutes = require('./routes/support');
 const invitesRoutes = require('./routes/invites');
 const summaryRoutes = require('./routes/summary');
+const achievementsRoutes = require('./routes/achievements');
 // path already required above
 
 const cloudinary = require('cloudinary').v2;
@@ -131,6 +132,7 @@ app.use('/api/shop', shopRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/invites', invitesRoutes);
 app.use('/api/summary', summaryRoutes);
+app.use('/api/achievements', achievementsRoutes);
 
 // Lightweight health endpoint to verify cloudinary configuration (non-sensitive)
 app.get('/api/health/cloudinary', (req, res) => {
