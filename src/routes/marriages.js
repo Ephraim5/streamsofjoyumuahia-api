@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const auth = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
 const { listMarriages, createMarriage, updateMarriage, deleteMarriage } = require('../controllers/marriagesController');
 
-router.get('/', auth, listMarriages);
-router.post('/', auth, createMarriage);
-router.put('/:id', auth, updateMarriage);
-router.delete('/:id', auth, deleteMarriage);
+router.get('/', authMiddleware, listMarriages);
+router.post('/', authMiddleware, createMarriage);
+router.put('/:id', authMiddleware, updateMarriage);
+router.delete('/:id', authMiddleware, deleteMarriage);
 
 module.exports = router;
