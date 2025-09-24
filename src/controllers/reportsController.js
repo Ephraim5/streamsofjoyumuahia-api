@@ -28,7 +28,7 @@ async function unitLeaderSummary(req, res){
       return res.json({ ok:true, unit:null, membersCount:0, soulsWonCount:0, finance:{ income:0, expense:0, balance:0 }, upcomingEvents: [] });
     }
     const [membersCount, soulsWonCount, financeAgg, upcomingEvents] = await Promise.all([
-      User.countDocuments({ 'roles.unit': unitId }),
+      User.countDocuments({ roles: { $elemMatch: { unit: unitId, role: { $in: ['UnitLeader','Member'] } } } }),
       Soul.countDocuments({ unit: unitId }),
       Finance.aggregate([
         { $match: {} },

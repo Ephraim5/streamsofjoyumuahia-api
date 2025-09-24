@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const Unit = require('../models/Unit');
+const Soul = require('../models/Soul');
 const { normalizeNigeriaPhone } = require('../utils/phone');
 const AccessCode = require('../models/AccessCode');
 
@@ -51,7 +52,77 @@ async function lookupEmail(req, res) {
 
 async function getMe(req, res) {
   const u = await User.findById(req.user._id).select('-passwordHash -__v').lean();
-  res.json({ ok: true, user: u });
+  // derive metrics per active role
+  const activeRole = u?.activeRole || null;
+  let metrics = {};
+
+  function fmtDateRange(minDate, maxDate){
+    if(!minDate || !maxDate) return '—';
+    const monthShort = (d)=> d.toLocaleString('en-US',{ month:'short'});
+    const daySuffix = (d)=>{
+      const n = d.getDate();
+      if (n % 10 === 1 && n !== 11) return n+'st';
+      if (n % 10 === 2 && n !== 12) return n+'nd';
+      if (n % 10 === 3 && n !== 13) return n+'rd';
+      return n+'th';
+    };
+    const left = `${monthShort(minDate)} ${daySuffix(minDate)}, ${minDate.getFullYear()}`;
+    const right = `${monthShort(maxDate)} ${daySuffix(maxDate)}, ${maxDate.getFullYear()}`;
+    return `${left} - ${right}`;
+  }
+
+  async function computeGlobalMetrics(){
+    const [soulsWon, minSoul, maxSoul, workersTotal] = await Promise.all([
+      Soul.countDocuments({}),
+      Soul.findOne({}).sort({ dateWon: 1 }).select('dateWon').lean(),
+      Soul.findOne({}).sort({ dateWon: -1 }).select('dateWon').lean(),
+      User.countDocuments({ 'roles.role': { $in: ['UnitLeader','Member'] } })
+    ]);
+    return {
+      soulsWon,
+      soulsRange: (minSoul && maxSoul && minSoul.dateWon && maxSoul.dateWon) ? fmtDateRange(new Date(minSoul.dateWon), new Date(maxSoul.dateWon)) : '—',
+      workersTotal
+    };
+  }
+
+  async function computeUnitMetrics(unitId){
+    if(!unitId) return { soulsWon: 0, soulsRange: '—', workersTotal: 0, unitMembers: 0 };
+    const [soulsWon, minSoul, maxSoul, workersTotal] = await Promise.all([
+      Soul.countDocuments({ unit: unitId }),
+      Soul.findOne({ unit: unitId }).sort({ dateWon: 1 }).select('dateWon').lean(),
+      Soul.findOne({ unit: unitId }).sort({ dateWon: -1 }).select('dateWon').lean(),
+      User.countDocuments({ roles: { $elemMatch: { unit: unitId, role: { $in: ['UnitLeader','Member'] } } } })
+    ]);
+    return {
+      soulsWon,
+      soulsRange: (minSoul && maxSoul && minSoul.dateWon && maxSoul.dateWon) ? fmtDateRange(new Date(minSoul.dateWon), new Date(maxSoul.dateWon)) : '—',
+      workersTotal,
+      unitMembers: workersTotal
+    };
+  }
+
+  // resolve active unit id for unit-scoped roles
+  const resolveActiveUnit = (user) => {
+    if(!user) return null;
+    const act = user.activeRole;
+    if(!act) return null;
+    const roleObj = (user.roles||[]).find(r => r.role === act && r.unit);
+    return roleObj ? roleObj.unit : null;
+  };
+
+  try {
+    if (activeRole === 'SuperAdmin') {
+      metrics = await computeGlobalMetrics();
+    } else if (['UnitLeader','Member','PastorUnit'].includes(activeRole)) {
+      const unitId = resolveActiveUnit(u);
+      metrics = await computeUnitMetrics(unitId);
+    }
+  } catch (e) {
+    // Do not fail getMe if metrics fail; just log and continue
+    console.warn('getMe metrics error', e?.message);
+  }
+
+  res.json({ ok: true, user: { ...u, metrics } });
 }
 
 // Secure fetch by id (used for profile recovery after login)
