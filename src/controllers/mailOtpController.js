@@ -149,13 +149,6 @@ exports.completeRegularRegistration = async (req, res) => {
         console.warn('[completeRegularRegistration] Member with no unitsMember supplied', userId);
       }
       unitsMember.forEach(uId => roleEntries.push({ role: 'Member', unit: uId }));
-    } else if (activeRole === 'PastorUnit') {
-      // PastorUnit currently not tied to specific unit, but accept optional unitsLed for future linking
-      if (unitsLed.length) {
-        unitsLed.forEach(uId => roleEntries.push({ role: 'PastorUnit', unit: uId }));
-      } else {
-        roleEntries.push({ role: 'PastorUnit' });
-      }
     }
     // Merge with any existing roles (should be empty at this stage)
     user.roles = (user.roles || []).concat(roleEntries);

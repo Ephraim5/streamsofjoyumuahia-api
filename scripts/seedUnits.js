@@ -35,7 +35,8 @@ const DEFAULT_UNITS = [
   'Temple keepers',
   'Training and development',
   'Transport unit',
-  'Watchtower'
+  'Watchtower',
+  'Pastor Unit'
 ];
 
 async function seedUnits() {

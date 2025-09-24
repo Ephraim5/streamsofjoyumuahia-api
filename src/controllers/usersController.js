@@ -113,7 +113,7 @@ async function getMe(req, res) {
   try {
     if (activeRole === 'SuperAdmin') {
       metrics = await computeGlobalMetrics();
-    } else if (['UnitLeader','Member','PastorUnit'].includes(activeRole)) {
+    } else if (['UnitLeader','Member'].includes(activeRole)) {
       const unitId = resolveActiveUnit(u);
       metrics = await computeUnitMetrics(unitId);
     }
@@ -194,7 +194,7 @@ async function addRole(req, res) {
     const { role, unitId } = req.body || {};
     if (!id) return res.status(400).json({ ok:false, message:'id required' });
     if (!role) return res.status(400).json({ ok:false, message:'role required' });
-    const allowed = ['UnitLeader','Member','PastorUnit'];
+  const allowed = ['UnitLeader','Member'];
     if (!allowed.includes(role)) return res.status(400).json({ ok:false, message:'Invalid role choice' });
     // Only allow self-modification & only if user is SuperAdmin (explicit requirement)
     if (req.user._id.toString() !== id) return res.status(403).json({ ok:false, message:'Can only add role to self' });
@@ -205,13 +205,6 @@ async function addRole(req, res) {
     if (!user) return res.status(404).json({ ok:false, message:'User not found' });
 
     // Prevent duplicate (same role+unit) entries
-    if (role === 'PastorUnit') {
-      const already = (user.roles||[]).some(r=>r.role==='PastorUnit');
-      if (already) return res.status(400).json({ ok:false, message:'PastorUnit role already exists' });
-      user.roles.push({ role, unit: null });
-      await user.save();
-      return res.json({ ok:true, user: await User.findById(id).select('-passwordHash -__v') });
-    }
 
     if (!unitId) return res.status(400).json({ ok:false, message:'unitId required for this role' });
     const unit = await Unit.findById(unitId);

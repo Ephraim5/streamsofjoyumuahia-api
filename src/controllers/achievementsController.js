@@ -3,7 +3,7 @@ const Achievement = require('../models/Achievement');
 // Helpers
 function userUnitIds(user) {
   return (user.roles || [])
-    .filter(r => ['Member','UnitLeader','PastorUnit'].includes(r.role) && r.unit)
+    .filter(r => ['Member','UnitLeader'].includes(r.role) && r.unit)
     .map(r => String(r.unit));
 }
 

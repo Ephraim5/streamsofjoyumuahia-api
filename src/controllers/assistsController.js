@@ -2,7 +2,7 @@ const Assistance = require('../models/Assistance');
 
 function userUnitIds(user) {
   return (user.roles || [])
-    .filter(r => ['Member','UnitLeader','PastorUnit'].includes(r.role) && r.unit)
+    .filter(r => ['Member','UnitLeader'].includes(r.role) && r.unit)
     .map(r => String(r.unit));
 }
 function isSuperAdmin(user) { return (user.roles || []).some(r => r.role === 'SuperAdmin'); }
