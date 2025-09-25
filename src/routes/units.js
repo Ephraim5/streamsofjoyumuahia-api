@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authMiddleware } = require('../middleware/auth');
-const { createUnit, addMember, listUnits, listUnitsPublic, listUnitsDashboard } = require('../controllers/unitsController');
+const { createUnit, addMember, listUnits, listUnitsPublic, listUnitsDashboard, unitSummaryById } = require('../controllers/unitsController');
 const Unit = require('../models/Unit');
 const User = require('../models/User');
 
@@ -12,6 +12,8 @@ router.get('/', authMiddleware, listUnits);
 router.get('/public', listUnitsPublic);
 // SuperAdmin dashboard view of all units with computed metrics
 router.get('/dashboard', authMiddleware, listUnitsDashboard);
+// SuperAdmin unit summary by id
+router.get('/:id/summary', authMiddleware, unitSummaryById);
 
 // GET /api/units/:id/members  (auth) => minimal member list
 router.get('/:id/members/list', authMiddleware, async (req,res) => {

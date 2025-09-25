@@ -7,6 +7,9 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "seed:admin": "node scripts/seedAdmin.js",
+    "seed:souls:clear": "node scripts/clearSouls.js",
+    "seed:souls:sample": "node scripts/seedSouls.js",
+    "seed:souls:reset": "npm run seed:souls:clear && npm run seed:souls:sample",
     "migrate:backfill-souls-refs": "node scripts/migrations/backfill-souls-refs.js",
     "migrate:backfill-souls-refs:apply": "node scripts/migrations/backfill-souls-refs.js --apply"
   },

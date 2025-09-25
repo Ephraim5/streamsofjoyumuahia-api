@@ -7,6 +7,7 @@ const Marriage = require('../models/Marriage');
 const RecoveredAddict = require('../models/RecoveredAddict');
 const Song = require('../models/Song');
 const Achievement = require('../models/Achievement');
+const Finance = require('../models/Finance');
 
 async function createUnit(req, res) {
   // only SuperAdmin
@@ -184,4 +185,42 @@ async function listUnitsDashboard(req, res) {
   }
 }
 
-module.exports = { createUnit, addMember, listUnits, listUnitsPublic, listUnitsDashboard };
+// GET /api/units/:id/summary (SuperAdmin only)
+// Returns counts for a single unit and simple finance snapshot
+async function unitSummaryById(req, res) {
+  try {
+    const actor = req.user;
+    const isSuperAdmin = (actor.roles||[]).some(r=>r.role==='SuperAdmin') || actor.activeRole==='SuperAdmin';
+    if (!isSuperAdmin) return res.status(403).json({ ok:false, message:'Forbidden' });
+
+    const unitId = req.params.id;
+    if (!unitId) return res.status(400).json({ ok:false, message:'unitId required' });
+
+    const [unit, membersCount, soulsCount, invitesCount, assistsCount, marriagesCount, recoveredCount, songsCount, achievementsCount, financeAgg] = await Promise.all([
+      Unit.findById(unitId).select('name leaders members').lean(),
+      User.countDocuments({ roles: { $elemMatch: { unit: unitId, role: { $in: ['UnitLeader','Member'] } } } }),
+      Soul.countDocuments({ unit: unitId }),
+      Invite.countDocuments({ unit: unitId }),
+      Assistance.countDocuments({ unit: unitId }),
+      Marriage.countDocuments({ unit: unitId }),
+      RecoveredAddict.countDocuments({ unit: unitId }),
+      Song.countDocuments({ unit: unitId }),
+      Achievement.countDocuments({ unit: unitId }),
+      Finance.aggregate([
+        { $match: {} },
+        { $group: { _id: '$type', total: { $sum: '$amount' } } }
+      ])
+    ]);
+
+    const income = financeAgg.find(f=>f._id==='income')?.total || 0;
+    const expense = financeAgg.find(f=>f._id==='expense')?.total || 0;
+    const balance = income - expense;
+
+    return res.json({ ok:true, unit: unit ? { _id: unit._id, name: unit.name } : null, counts: { membersCount, soulsCount, invitesCount, assistsCount, marriagesCount, recoveredCount, songsCount, achievementsCount }, finance: { income, expense, balance } });
+  } catch (e) {
+    console.error('unitSummaryById error', e);
+    return res.status(500).json({ ok:false, message:'Failed to load unit summary', error: e.message });
+  }
+}
+
+module.exports = { createUnit, addMember, listUnits, listUnitsPublic, listUnitsDashboard, unitSummaryById };
