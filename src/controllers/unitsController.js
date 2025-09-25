@@ -7,13 +7,6 @@ const Marriage = require('../models/Marriage');
 const RecoveredAddict = require('../models/RecoveredAddict');
 const Song = require('../models/Song');
 const Achievement = require('../models/Achievement');
-const Soul = require('../models/Soul');
-const Invite = require('../models/Invite');
-const Achievement = require('../models/Achievement');
-const Assistance = require('../models/Assistance');
-const Marriage = require('../models/Marriage');
-const RecoveredAddict = require('../models/RecoveredAddict');
-const Song = require('../models/Song');
 
 async function createUnit(req, res) {
   // only SuperAdmin
@@ -61,7 +54,7 @@ async function listUnitsPublic(req, res) {
   }
 }
 
-module.exports = { createUnit, addMember, listUnits, listUnitsPublic };
+// exports are consolidated at the bottom
 
 // GET /api/units/dashboard?days=14 (SuperAdmin only)
 // Returns per-unit metrics: name, leaderName, membersCount (leaders+members),
@@ -191,103 +184,3 @@ async function listUnitsDashboard(req, res) {
 }
 
 module.exports = { createUnit, addMember, listUnits, listUnitsPublic, listUnitsDashboard };
-
-// Dashboard for SuperAdmin: per-unit leader, members count, active members in timeframe, last report date
-async function listUnitsDashboard(req, res) {
-  try {
-    const user = req.user;
-    const isSuper = (user?.roles || []).some(r => r.role === 'SuperAdmin') || user?.activeRole === 'SuperAdmin';
-    if (!isSuper) return res.status(403).json({ ok: false, message: 'Requires SuperAdmin' });
-
-    const days = Math.max(1, Math.min(60, Number(req.query.days) || 14));
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-
-    // Load all units with leaders/members (for counts and leader info)
-    const units = await Unit.find({}).select('name leaders members')
-      .populate('leaders', 'firstName middleName surname phone email title approved createdAt')
-      .populate('members', '_id');
-
-    // Helper to run aggregate on a model: return map unitId => { maxDate, activeUsers: Set<ObjectId> }
-    async function agg(model, { unitField, userField, dateField }) {
-      // Build pipeline computing max date (fallback to createdAt) and active users since timeframe
-      const pipeline = [
-        { $match: { [unitField]: { $ne: null } } },
-        {
-          $group: {
-            _id: `$${unitField}`,
-            maxDate: { $max: { $ifNull: [ `$${dateField}`, '$createdAt' ] } },
-            actUsersRaw: { $addToSet: { $cond: [ { $gte: [ { $ifNull: [ `$${dateField}`, '$createdAt' ] }, since ] }, `$${userField}`, null ] } }
-          }
-        },
-        { $project: { maxDate: 1, actUsers: { $setDifference: [ '$actUsersRaw', [ null ] ] } } }
-      ];
-      const rows = await model.aggregate(pipeline);
-      const out = new Map();
-      for (const r of rows) {
-        out.set(String(r._id), { maxDate: r.maxDate ? new Date(r.maxDate) : null, activeUsers: new Set((r.actUsers || []).map(x => String(x))) });
-      }
-      return out;
-    }
-
-    const [
-      soulsAgg,
-      invitesAgg,
-      achievementsAgg,
-      assistsAgg,
-      marriagesAgg,
-      recoveredAgg,
-      songsAgg
-    ] = await Promise.all([
-      agg(Soul, { unitField: 'unit', userField: 'addedBy', dateField: 'dateWon' }),
-      agg(Invite, { unitField: 'unit', userField: 'invitedBy', dateField: 'invitedAt' }),
-      agg(Achievement, { unitField: 'unit', userField: 'addedBy', dateField: 'date' }),
-      agg(Assistance, { unitField: 'unit', userField: 'addedBy', dateField: 'assistedOn' }),
-      agg(Marriage, { unitField: 'unit', userField: 'addedBy', dateField: 'date' }),
-      agg(RecoveredAddict, { unitField: 'unit', userField: 'addedBy', dateField: 'dateOfRecovery' }),
-      agg(Song, { unitField: 'unit', userField: 'addedBy', dateField: 'releaseDate' })
-    ]);
-
-    function mergeUnitActivity(unitId) {
-      const key = String(unitId);
-      const sources = [soulsAgg, invitesAgg, achievementsAgg, assistsAgg, marriagesAgg, recoveredAgg, songsAgg];
-      let maxDate = null;
-      const activeUsers = new Set();
-      for (const src of sources) {
-        const r = src.get(key);
-        if (!r) continue;
-        if (r.maxDate && (!maxDate || r.maxDate > maxDate)) maxDate = r.maxDate;
-        for (const u of r.activeUsers) activeUsers.add(u);
-      }
-      return { maxDate, activeUsers };
-    }
-
-    const payload = units.map(u => {
-      const { maxDate, activeUsers } = mergeUnitActivity(u._id);
-      const leader = (u.leaders && u.leaders.length) ? u.leaders[0] : null;
-      const leaderName = leader ? [leader.title, leader.firstName, leader.middleName, leader.surname].filter(Boolean).join(' ') : '_';
-      const membersCount = (u.leaders?.length || 0) + (u.members?.length || 0);
-      // Count active among unit workers (leaders + members)
-      const unitWorkerIds = new Set([...(u.leaders || []).map(x => String(x._id || x)), ...(u.members || []).map(x => String(x._id || x))]);
-      let activeCount = 0;
-      for (const id of activeUsers) {
-        if (unitWorkerIds.has(String(id))) activeCount++;
-      }
-      return {
-        _id: u._id,
-        name: u.name,
-        leader: leader ? { _id: leader._id, firstName: leader.firstName, middleName: leader.middleName, surname: leader.surname, phone: leader.phone || '', email: leader.email || '', title: leader.title || '', approved: !!leader.approved, createdAt: leader.createdAt } : null,
-        leaderName,
-        membersCount,
-        activeCount,
-        lastReportAt: maxDate || null
-      };
-    });
-
-    return res.json({ ok: true, days, units: payload });
-  } catch (e) {
-    console.error('listUnitsDashboard error', e);
-    return res.status(500).json({ ok: false, message: 'Failed to load units dashboard', error: e.message });
-  }
-}
-
-module.exports.listUnitsDashboard = listUnitsDashboard;
