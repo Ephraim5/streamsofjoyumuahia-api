@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authMiddleware } = require('../middleware/auth');
-const { createUnit, addMember, listUnits, listUnitsPublic } = require('../controllers/unitsController');
+const { createUnit, addMember, listUnits, listUnitsPublic, listUnitsDashboard } = require('../controllers/unitsController');
 const Unit = require('../models/Unit');
 const User = require('../models/User');
 
@@ -10,6 +10,8 @@ router.post('/:id/members', authMiddleware, addMember);
 router.get('/', authMiddleware, listUnits);
 // Public listing for registration wizard (name & _id only)
 router.get('/public', listUnitsPublic);
+// SuperAdmin dashboard view of all units with computed metrics
+router.get('/dashboard', authMiddleware, listUnitsDashboard);
 
 // GET /api/units/:id/members  (auth) => minimal member list
 router.get('/:id/members/list', authMiddleware, async (req,res) => {
