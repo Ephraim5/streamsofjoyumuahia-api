@@ -36,4 +36,25 @@ router.get('/:id/members/list', authMiddleware, async (req,res) => {
   }
 });
 
+// GET /api/units/:id/leaders/list  (auth) => minimal leaders list
+router.get('/:id/leaders/list', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ ok: false, message: 'unit id required' });
+    const user = req.user;
+    const isSuper = (user.roles || []).some(r => r.role === 'SuperAdmin') || user.activeRole === 'SuperAdmin';
+    const allowedUnitIds = (user.roles || []).filter(r => ['Member', 'UnitLeader'].includes(r.role) && r.unit).map(r => String(r.unit));
+    if (!isSuper && !allowedUnitIds.includes(String(id))) {
+      return res.status(403).json({ ok: false, message: 'Forbidden for this unit' });
+    }
+    const unit = await Unit.findById(id).select('leaders');
+    if (!unit) return res.status(404).json({ ok: false, message: 'Unit not found' });
+    const leaders = await User.find({ _id: { $in: unit.leaders } }).select('firstName middleName surname phone title profile.avatar');
+    return res.json({ ok: true, leaders });
+  } catch (e) {
+    console.error('list unit leaders error', e);
+    return res.status(500).json({ ok: false, message: 'Failed to list leaders', error: e.message });
+  }
+});
+
 module.exports = router;
