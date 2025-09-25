@@ -169,6 +169,7 @@ async function listUnitsDashboard(req, res) {
       return {
         _id: u._id,
         name: u.name,
+        leaderId: leaderDoc ? leaderDoc._id : null,
         leaderName,
         membersCount,
         activeCount: activeSet.size,
