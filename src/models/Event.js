@@ -6,6 +6,8 @@ const EventSchema = new mongoose.Schema({
   description: String,
   date: Date,
   eventType: String,
+  tags: [{ type: String }],
+  status: { type: String, enum: ['Upcoming','Past'], default: 'Upcoming' },
   reminder: { type: Boolean, default: false },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdAt: { type: Date, default: Date.now }
