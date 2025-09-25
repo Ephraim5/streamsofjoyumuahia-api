@@ -212,11 +212,26 @@ async function unitSummaryById(req, res) {
       ])
     ]);
 
+    // Gender counts: consider both leaders and members
+    let femaleCount = 0;
+    let maleCount = 0;
+    if (unit) {
+      const ids = [ ...(unit.leaders||[]), ...(unit.members||[]) ];
+      if (ids.length) {
+        const people = await User.find({ _id: { $in: ids } }).select('profile.gender').lean();
+        for (const p of people) {
+          const g = (p?.profile?.gender || '').toString().toLowerCase();
+          if (g === 'female') femaleCount += 1;
+          else if (g === 'male') maleCount += 1;
+        }
+      }
+    }
+
     const income = financeAgg.find(f=>f._id==='income')?.total || 0;
     const expense = financeAgg.find(f=>f._id==='expense')?.total || 0;
     const balance = income - expense;
 
-    return res.json({ ok:true, unit: unit ? { _id: unit._id, name: unit.name } : null, counts: { membersCount, soulsCount, invitesCount, assistsCount, marriagesCount, recoveredCount, songsCount, achievementsCount }, finance: { income, expense, balance } });
+    return res.json({ ok:true, unit: unit ? { _id: unit._id, name: unit.name } : null, counts: { membersCount, femaleCount, maleCount, soulsCount, invitesCount, assistsCount, marriagesCount, recoveredCount, songsCount, achievementsCount }, finance: { income, expense, balance } });
   } catch (e) {
     console.error('unitSummaryById error', e);
     return res.status(500).json({ ok:false, message:'Failed to load unit summary', error: e.message });
