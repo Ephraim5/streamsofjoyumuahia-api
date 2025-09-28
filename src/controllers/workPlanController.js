@@ -82,7 +82,7 @@ exports.submitWorkPlan = async (req, res) => {
   try {
     const doc = await WorkPlan.findById(req.params.id);
     if (!doc) return res.status(404).json({ ok: false, error: 'Not found' });
-    if (doc.status !== 'draft' && doc.status !== 'rejected') return res.status(400).json({ ok: false, error: 'Only draft/rejected can be submitted' });
+    if (doc.status !== 'draft' && doc.status !== 'rejected' && doc.status !== 'pending')  return res.status(400).json({ ok: false, error: 'Only draft/rejected can be submitted' });
     doc.status = 'pending';
     doc.submittedAt = new Date();
     doc.submittedBy = req.user?._id;
