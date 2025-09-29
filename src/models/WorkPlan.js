@@ -10,6 +10,16 @@ const ActivitySchema = new mongoose.Schema({
   estimatedHours: { type: Number, default: 0 },
   progressPercent: { type: Number, default: 0, min: 0, max: 100 },
   status: { type: String, enum: ['not_started','in_progress','completed'], default: 'not_started' },
+  // Review-specific fields for SuperAdmin activity-level feedback
+  reviewStatus: { type: String, enum: ['pending','approved','rejected','n/a'], default: 'pending' },
+  reviewRating: { type: Number, min: 1, max: 5 },
+  reviewRejectionReason: { type: String },
+  reviewComments: [{
+    _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    message: String,
+    createdAt: { type: Date, default: Date.now }
+  }],
   comments: [{
     _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -72,6 +82,21 @@ const WorkPlanSchema = new mongoose.Schema({
   }],
   versionHistory: { type: [VersionHistorySchema], default: [] },
   progressPercent: { type: Number, default: 0 }, // aggregated cached value
+  // SuperAdmin review metadata
+  reviewRating: { type: Number, min:1, max:5 },
+  reviewComments: [{
+    _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    message: String,
+    createdAt: { type: Date, default: Date.now }
+  }],
+  // General discussion/comments thread (distinct from version history)
+  comments: [{
+    _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    message: String,
+    createdAt: { type: Date, default: Date.now }
+  }]
 }, { timestamps: true });
 
 // Helper to recalc progress

@@ -13,6 +13,12 @@ router.post('/:id/submit', authMiddleware, ctrl.submitWorkPlan);
 router.post('/:id/approve', authMiddleware, ctrl.approveWorkPlan);
 router.post('/:id/reject', authMiddleware, ctrl.rejectWorkPlan);
 router.post('/:id/activity-progress', authMiddleware, ctrl.updateActivityProgress);
+// SuperAdmin review extensions
+router.post('/:id/review/approve', authMiddleware, ctrl.reviewApproveWorkPlan);
+router.post('/:id/review/reject', authMiddleware, ctrl.reviewRejectWorkPlan);
+router.post('/:id/review/comment', authMiddleware, ctrl.addWorkPlanComment);
+router.post('/:id/review/activity', authMiddleware, ctrl.reviewActivity);
+router.post('/:id/review/activity/comment', authMiddleware, ctrl.addActivityComment);
 router.delete('/:id', authMiddleware, ctrl.deleteWorkPlan);
 
 module.exports = router;
