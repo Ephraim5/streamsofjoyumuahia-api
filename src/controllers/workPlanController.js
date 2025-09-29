@@ -37,7 +37,12 @@ exports.listWorkPlans = async (req, res) => {
     }
     const skip = (Number(page) - 1) * Number(limit);
     const [items, total] = await Promise.all([
-      WorkPlan.find(filter).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)),
+      WorkPlan.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit))
+        .populate('unit','name')
+        .populate('owner','firstName surname'),
       WorkPlan.countDocuments(filter)
     ]);
     await Promise.all(items.map(d => applyAutoStatus(d, req.user?._id)));
