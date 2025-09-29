@@ -297,6 +297,33 @@ exports.updateActivityProgress = async (req, res) => {
   }
 };
 
+// Set final success rate (SuperAdmin) with category auto-derivation if not provided
+exports.setSuccessRate = async (req,res)=>{
+  try {
+    ensureSuperAdmin(req.user);
+    const { rate, category } = req.body || {};
+    if(rate === undefined) return res.status(400).json({ ok:false, error:'rate required' });
+    if(rate < 0 || rate > 100) return res.status(400).json({ ok:false, error:'rate must be 0-100' });
+    const doc = await WorkPlan.findById(req.params.id);
+    if(!doc) return res.status(404).json({ ok:false, error:'Not found' });
+    let cat = category;
+    if(!cat){
+      if(rate < 40) cat = 'low';
+      else if(rate < 85) cat = 'good';
+      else cat = 'perfect';
+    }
+    doc.successRate = rate;
+    doc.successCategory = cat;
+    doc.successRatedAt = new Date();
+    doc.successRatedBy = req.user?._id;
+    pushHistory(doc,'success_rated', req.user?._id, { rate, category: cat });
+    await doc.save();
+    res.json({ ok:true, item: doc });
+  } catch(e){
+    res.status(400).json({ ok:false, error:e.message });
+  }
+};
+
 // Delete a work plan (only allowed in draft or rejected or pending?)
 exports.deleteWorkPlan = async (req, res) => {
   try {

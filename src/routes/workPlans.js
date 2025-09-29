@@ -19,6 +19,7 @@ router.post('/:id/review/reject', authMiddleware, ctrl.reviewRejectWorkPlan);
 router.post('/:id/review/comment', authMiddleware, ctrl.addWorkPlanComment);
 router.post('/:id/review/activity', authMiddleware, ctrl.reviewActivity);
 router.post('/:id/review/activity/comment', authMiddleware, ctrl.addActivityComment);
+router.post('/:id/success-rate', authMiddleware, ctrl.setSuccessRate);
 router.delete('/:id', authMiddleware, ctrl.deleteWorkPlan);
 
 module.exports = router;

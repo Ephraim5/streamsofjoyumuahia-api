@@ -92,6 +92,11 @@ const WorkPlanSchema = new mongoose.Schema({
     message: String,
     createdAt: { type: Date, default: Date.now }
   }],
+  // Final success evaluation (set by SuperAdmin) separate from reviewRating which is more qualitative
+  successRate: { type: Number, min:0, max:100 }, // percentage success evaluation
+  successCategory: { type: String, enum:['low','good','perfect'], default: undefined },
+  successRatedAt: { type: Date },
+  successRatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   // General discussion/comments thread (distinct from version history)
   comments: [{
     _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
