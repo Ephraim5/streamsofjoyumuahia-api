@@ -13,5 +13,6 @@ router.post('/:id/submit', authMiddleware, ctrl.submitWorkPlan);
 router.post('/:id/approve', authMiddleware, ctrl.approveWorkPlan);
 router.post('/:id/reject', authMiddleware, ctrl.rejectWorkPlan);
 router.post('/:id/activity-progress', authMiddleware, ctrl.updateActivityProgress);
+router.delete('/:id', authMiddleware, ctrl.deleteWorkPlan);
 
 module.exports = router;

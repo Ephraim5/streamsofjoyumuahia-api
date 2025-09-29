@@ -151,3 +151,19 @@ exports.updateActivityProgress = async (req, res) => {
     res.status(500).json({ ok: false, error: e.message });
   }
 };
+
+// Delete a work plan (only allowed in draft or rejected or pending?)
+exports.deleteWorkPlan = async (req, res) => {
+  try {
+    const doc = await WorkPlan.findById(req.params.id);
+    if(!doc) return res.status(404).json({ ok:false, error:'Not found' });
+    // Basic rule: cannot delete once approved
+    if(doc.status === 'approved') {
+      return res.status(400).json({ ok:false, error:'Approved plans cannot be deleted' });
+    }
+    await doc.deleteOne();
+    res.json({ ok:true, deleted:true });
+  } catch(e){
+    res.status(500).json({ ok:false, error:e.message });
+  }
+};
