@@ -5,6 +5,27 @@ function pushHistory(doc, action, userId, meta = {}) {
   doc.versionHistory.push({ action, user: userId, meta });
 }
 
+// Auto transition helper
+async function applyAutoStatus(doc, userId){
+  if(!doc || !doc.endDate) return doc;
+  const now = new Date();
+  if(doc.endDate < now){
+    if(doc.status === 'pending'){
+      if(doc.status !== 'ignored'){
+        doc.status = 'ignored';
+        pushHistory(doc,'auto_ignored', userId);
+        await doc.save();
+      }
+    } else if(!['approved','rejected','ignored'].includes(doc.status)){
+      doc.status = 'rejected';
+      if(!doc.rejectionReason) doc.rejectionReason = 'Automatically rejected after end date without approval';
+      pushHistory(doc,'auto_rejected', userId, { reason:'endDate passed' });
+      await doc.save();
+    }
+  }
+  return doc;
+}
+
 exports.listWorkPlans = async (req, res) => {
   try {
     const { status, q, page = 1, limit = 20 } = req.query;
@@ -19,6 +40,7 @@ exports.listWorkPlans = async (req, res) => {
       WorkPlan.find(filter).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)),
       WorkPlan.countDocuments(filter)
     ]);
+    await Promise.all(items.map(d => applyAutoStatus(d, req.user?._id)));
     res.json({ ok: true, items, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
@@ -29,6 +51,7 @@ exports.getWorkPlan = async (req, res) => {
   try {
     const doc = await WorkPlan.findById(req.params.id);
     if (!doc) return res.status(404).json({ ok: false, error: 'Not found' });
+    await applyAutoStatus(doc, req.user?._id);
     res.json({ ok: true, item: doc });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });

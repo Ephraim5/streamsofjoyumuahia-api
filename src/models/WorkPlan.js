@@ -54,7 +54,7 @@ const WorkPlanSchema = new mongoose.Schema({
   startDate: { type: Date },
   endDate: { type: Date },
   generalGoal: { type: String, default: '' },
-  status: { type: String, enum: ['draft','pending','approved','rejected'], default: 'draft' },
+  status: { type: String, enum: ['draft','pending','approved','rejected','ignored'], default: 'draft' },
   submittedAt: { type: Date },
   submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   approvedAt: { type: Date },
