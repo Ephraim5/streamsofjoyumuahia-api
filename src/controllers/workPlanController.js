@@ -85,8 +85,8 @@ exports.updateWorkPlan = async (req, res) => {
   try {
     const doc = await WorkPlan.findById(req.params.id);
     if (!doc) return res.status(404).json({ ok: false, error: 'Not found' });
-    if (doc.status !== 'draft' && doc.status !== 'rejected') {
-      return res.status(400).json({ ok: false, error: 'Only draft or rejected plans can be edited' });
+    if (doc.status !== 'draft' && doc.status !== 'rejected' && doc.status !== 'pending' && doc.status !== 'ignored') {
+      return res.status(400).json({ ok: false, error: 'Only draft, pending, rejected or ignored plans can be edited' });
     }
     const body = req.body || {};
     ['title','startDate','endDate','generalGoal','notes','plans'].forEach(f => {
