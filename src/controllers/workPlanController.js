@@ -54,7 +54,9 @@ exports.listWorkPlans = async (req, res) => {
 
 exports.getWorkPlan = async (req, res) => {
   try {
-    const doc = await WorkPlan.findById(req.params.id);
+    const doc = await WorkPlan.findById(req.params.id)
+      .populate('reviewComments.user','firstName surname')
+      .populate('plans.activities.reviewComments.user','firstName surname');
     if (!doc) return res.status(404).json({ ok: false, error: 'Not found' });
     await applyAutoStatus(doc, req.user?._id);
     res.json({ ok: true, item: doc });
