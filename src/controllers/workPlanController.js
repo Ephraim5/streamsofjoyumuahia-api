@@ -5,29 +5,23 @@ function pushHistory(doc, action, userId, meta = {}) {
   doc.versionHistory.push({ action, user: userId, meta });
 }
 
-// Auto transition helper
-async function applyAutoStatus(doc, userId){
-  if(!doc || !doc.endDate) return doc;
-  const now = new Date();
-  if(doc.endDate < now){
-    if(doc.status === 'pending'){
-      if(doc.status !== 'ignored'){
-        doc.status = 'ignored';
-        pushHistory(doc,'auto_ignored', userId);
-        await doc.save();
-      }
-    } else if(!['approved','rejected','ignored'].includes(doc.status)){
-      doc.status = 'rejected';
-      if(!doc.rejectionReason) doc.rejectionReason = 'Automatically rejected after end date without approval';
-      pushHistory(doc,'auto_rejected', userId, { reason:'endDate passed' });
+// Conditional auto transition helper (only run when explicitly requested e.g. completed filter)
+async function applyAutoStatus(doc, userId, options = {}){
+  const { allowCompletion = false } = options;
+  if(!doc) return doc;
+  // Only evaluate outdated pending rejection and ignored rules if explicitly allowed (still lightweight)
+  // Keep minimal logic; heavy iteration removed from general fetch to avoid thread pressure
+  if(allowCompletion){
+    if(doc.status !== 'completed' && (doc.successRate !== undefined)){
+      // New rule: any successRate 0-100 finalizes the plan (not just 100)
+      doc.status = 'completed';
+      pushHistory(doc,'auto_completed', userId, { reason:'success rated' });
+      await doc.save();
+    } else if(doc.status !== 'completed' && doc.progressPercent >= 100){
+      doc.status = 'completed';
+      pushHistory(doc,'auto_completed', userId, { reason:'progress 100' });
       await doc.save();
     }
-  }
-  // Promote to completed state if fully progressed or success rated 100 (regardless of current status except already completed)
-  if(doc.status !== 'completed' && (doc.progressPercent >= 100 || (doc.successRate !== undefined && doc.successRate >= 100))){
-    doc.status = 'completed';
-    pushHistory(doc,'auto_completed', userId, { reason:'progress 100 or success rated 100' });
-    await doc.save();
   }
   return doc;
 }
@@ -51,7 +45,10 @@ exports.listWorkPlans = async (req, res) => {
         .populate('owner','firstName surname'),
       WorkPlan.countDocuments(filter)
     ]);
-    await Promise.all(items.map(d => applyAutoStatus(d, req.user?._id)));
+    // Only apply auto status completion if requesting completed list (ensures stale items promoted once user explicitly asks)
+    if(filter.status === 'completed'){
+      await Promise.all(items.map(d => applyAutoStatus(d, req.user?._id, { allowCompletion:true })));
+    }
     res.json({ ok: true, items, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
@@ -64,7 +61,7 @@ exports.getWorkPlan = async (req, res) => {
       .populate('reviewComments.user','firstName surname')
       .populate('plans.activities.reviewComments.user','firstName surname');
     if (!doc) return res.status(404).json({ ok: false, error: 'Not found' });
-    await applyAutoStatus(doc, req.user?._id);
+    // Do not auto-complete on normal detail fetch unless client explicitly queries completed list elsewhere
     res.json({ ok: true, item: doc });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
@@ -322,6 +319,11 @@ exports.setSuccessRate = async (req,res)=>{
     doc.successCategory = cat;
     doc.successRatedAt = new Date();
     doc.successRatedBy = req.user?._id;
+    // Immediate status finalization on rating (any value 0-100 is considered final now)
+    if(doc.status !== 'completed'){
+      doc.status = 'completed';
+      pushHistory(doc,'auto_completed', req.user?._id, { reason:'success rated' });
+    }
     pushHistory(doc,'success_rated', req.user?._id, { rate, category: cat });
     await doc.save();
     res.json({ ok:true, item: doc });
