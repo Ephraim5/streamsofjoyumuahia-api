@@ -23,13 +23,11 @@ async function applyAutoStatus(doc, userId){
       await doc.save();
     }
   }
-  // Promote to completed state if approved and fully progressed or success rated 100
-  if(doc.status === 'approved'){
-    if(doc.progressPercent >= 100 || (doc.successRate !== undefined && doc.successRate >= 100)){
-      doc.status = 'completed';
-      pushHistory(doc,'auto_completed', userId, { reason:'progress 100 or success rated 100' });
-      await doc.save();
-    }
+  // Promote to completed state if fully progressed or success rated 100 (regardless of current status except already completed)
+  if(doc.status !== 'completed' && (doc.progressPercent >= 100 || (doc.successRate !== undefined && doc.successRate >= 100))){
+    doc.status = 'completed';
+    pushHistory(doc,'auto_completed', userId, { reason:'progress 100 or success rated 100' });
+    await doc.save();
   }
   return doc;
 }
