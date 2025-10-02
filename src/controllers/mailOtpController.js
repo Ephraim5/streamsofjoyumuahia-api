@@ -14,10 +14,11 @@ exports.sendMailOtp = async (req, res) => {
     if (!email || typeof email !== 'string') {
       return res.status(400).json({ ok: false, message: 'Email required.' });
     }
+
     // Sanitize: trim and strip trailing punctuation that users often add accidentally
-    email = email.trim().toLowerCase().replace(/[\s]+/g,'');
+    email = email.trim().toLowerCase().replace(/[\s]+/g, '');
     // Remove trailing characters like . , ; : if present (common copy/paste artifact)
-    email = email.replace(/[\.,;:]+$/,'');
+    email = email.replace(/[\.,;:]+$/, '');
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       return res.status(400).json({ ok: false, message: 'Invalid email format.' });
     }
@@ -25,10 +26,19 @@ exports.sendMailOtp = async (req, res) => {
     // Simple throttle: if an OTP was created less than 45 seconds ago, block resend
     const existing = await MailOtp.findOne({ email }).lean();
     const user = await User.findOne({ email })
+
     if (existing && Date.now() - new Date(existing.createdAt).getTime() < 45 * 1000) {
       return res.status(429).json({ ok: false, message: 'Please wait before requesting another code.' });
     }
-
+    if (user.isVerified) {
+      return res.status(200).json({
+        ok: true, 
+        message: 'Email not sent UAV',
+        role: user ? user.activeRole : null,
+        user,
+        userId: user ? user._id : undefined
+      });
+    }
     const otp = generateOtp();
     await MailOtp.findOneAndUpdate(
       { email },
@@ -54,9 +64,9 @@ exports.sendMailOtp = async (req, res) => {
       const original = mailErr && mailErr.original ? mailErr.original : undefined;
       console.error('[mailOtp] Email dispatch failed', { email, code, err: mailErr.message, original, skip: process.env.SKIP_EMAIL, from: process.env.RESEND_FROM });
       let userMessage = 'Email delivery failed. Try again shortly.';
-  if (code === 'EMAIL_CONFIG_MISSING') userMessage = 'Email service not configured. Contact support.';
-  else if (code === 'EMAIL_DOMAIN_UNVERIFIED') userMessage = 'Email domain not verified. Please wait and retry.';
-  else if (code === 'EMAIL_FROM_INVALID') userMessage = 'Email sender incorrectly configured. Admin please fix from address.';
+      if (code === 'EMAIL_CONFIG_MISSING') userMessage = 'Email service not configured. Contact support.';
+      else if (code === 'EMAIL_DOMAIN_UNVERIFIED') userMessage = 'Email domain not verified. Please wait and retry.';
+      else if (code === 'EMAIL_FROM_INVALID') userMessage = 'Email sender incorrectly configured. Admin please fix from address.';
       const payload = { ok: false, message: userMessage, code };
       if (process.env.EMAIL_DEBUG === 'true' && original) payload.original = original;
       return res.status(502).json(payload);
@@ -128,7 +138,7 @@ exports.completeRegularRegistration = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ ok: false, message: 'User not found' });
     if (user.passwordHash) return res.status(400).json({ ok: false, message: 'Already completed registration' });
-  user.firstName = firstName;
+    user.firstName = firstName;
     user.surname = surname;
     user.middleName = middleName || '';
     user.activeRole = activeRole;
