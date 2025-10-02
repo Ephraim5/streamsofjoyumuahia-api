@@ -1,4 +1,5 @@
 const WorkPlan = require('../models/WorkPlan');
+const Unit = require('../models/Unit');
 
 // Utility to push version history
 function pushHistory(doc, action, userId, meta = {}) {
@@ -26,14 +27,37 @@ async function applyAutoStatus(doc, userId, options = {}){
   return doc;
 }
 
+// Derive the active unit id for a user (mainly for UnitLeader). Priority order:
+// 1. Explicit header x-active-unit (validated it belongs to a role)
+// 2. First role whose role matches user.activeRole and has a unit
+// 3. First UnitLeader role with a unit
+function deriveActiveUnitId(user, req){
+  if(!user) return null;
+  // Header driven (allows client to disambiguate if multiple units)
+  const headerUnit = (req.headers['x-active-unit'] || req.headers['x-unit-id'] || '').toString().trim();
+  if(headerUnit && (user.roles||[]).some(r => String(r.unit) === headerUnit)) return headerUnit;
+  const roles = user.roles || [];
+  // Match by activeRole string (note: activeRole in schema is a string, not embedded doc)
+  if(user.activeRole){
+    const match = roles.find(r => r.role === user.activeRole && r.unit);
+    if(match) return String(match.unit);
+  }
+  // Fallback: first UnitLeader role with unit
+  const firstLeader = roles.find(r => r.role === 'UnitLeader' && r.unit);
+  if(firstLeader) return String(firstLeader.unit);
+  return null;
+}
+
 exports.listWorkPlans = async (req, res) => {
   try {
     const { status, q, page = 1, limit = 20 } = req.query;
     const filter = {};
     if (status) filter.status = status;
     if (q) filter.title = { $regex: q, $options: 'i' };
-    if (req.user && req.user.activeRole && req.user.activeRole.unit) {
-      filter.unit = req.user.activeRole.unit; // scope to unit
+    // Only scope by unit for non-SuperAdmin roles
+    if (req.user && req.user.activeRole !== 'SuperAdmin') {
+      const unitId = deriveActiveUnitId(req.user, req);
+      if(unitId) filter.unit = unitId;
     }
     const skip = (Number(page) - 1) * Number(limit);
     const [items, total] = await Promise.all([
@@ -42,9 +66,30 @@ exports.listWorkPlans = async (req, res) => {
         .skip(skip)
         .limit(Number(limit))
         .populate('unit','name')
-        .populate('owner','firstName surname'),
+        .populate('owner','firstName surname roles activeRole'),
       WorkPlan.countDocuments(filter)
     ]);
+    // Backfill unit for legacy plans missing unit field (only if user is SuperAdmin so we can show originating unit)
+    const missing = items.filter(it => !it.unit && it.owner && Array.isArray(it.owner.roles));
+    if(missing.length){
+      const neededIds = new Set();
+      missing.forEach(doc => {
+        const roles = (doc.owner.roles||[]);
+        // Try role matching stored activeRole at creation (could be UnitLeader) else first UnitLeader
+        let target = roles.find(r => r.role === doc.owner.activeRole && r.unit) || roles.find(r => r.role === 'UnitLeader' && r.unit);
+        if(target && target.unit){ neededIds.add(String(target.unit)); (doc.__derivedUnitId = String(target.unit)); }
+      });
+      if(neededIds.size){
+        const units = await Unit.find({ _id: { $in: Array.from(neededIds) } }).select('name');
+        const unitMap = units.reduce((a,u)=>{ a[String(u._id)] = u; return a; }, {});
+        missing.forEach(doc => {
+          if(doc.__derivedUnitId && unitMap[doc.__derivedUnitId]){
+            // Attach a virtual-like field so JSON includes it
+            doc.unit = unitMap[doc.__derivedUnitId];
+          }
+        });
+      }
+    }
     // Only apply auto status completion if requesting completed list (ensures stale items promoted once user explicitly asks)
     if(filter.status === 'completed'){
       await Promise.all(items.map(d => applyAutoStatus(d, req.user?._id, { allowCompletion:true })));
@@ -71,10 +116,15 @@ exports.getWorkPlan = async (req, res) => {
 exports.createWorkPlan = async (req, res) => {
   try {
     const body = req.body || {};
+    // Determine unit to attach
+    let unitId = body.unit; // allow explicit override if provided & authorized
+    if(!unitId){
+      unitId = deriveActiveUnitId(req.user, req);
+    }
     const doc = new WorkPlan({
       title: body.title || 'Untitled Work Plan',
       owner: req.user?._id,
-      unit: req.user?.activeRole?.unit,
+      unit: unitId || undefined,
       startDate: body.startDate,
       endDate: body.endDate,
       generalGoal: body.generalGoal,
