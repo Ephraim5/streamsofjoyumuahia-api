@@ -113,7 +113,8 @@ exports.getWorkPlan = async (req, res) => {
   try {
     const doc = await WorkPlan.findById(req.params.id)
       .populate('reviewComments.user','firstName surname')
-      .populate('plans.activities.reviewComments.user','firstName surname');
+      .populate('plans.activities.reviewComments.user','firstName surname')
+      .populate('plans.activities.progressUpdates.user','firstName surname');
     if (!doc) return res.status(404).json({ ok: false, error: 'Not found' });
     // Do not auto-complete on normal detail fetch unless client explicitly queries completed list elsewhere
     res.json({ ok: true, item: doc });
@@ -333,7 +334,7 @@ exports.addActivityComment = async (req,res)=>{
 
 exports.updateActivityProgress = async (req, res) => {
   try {
-    const { activityId, progressPercent, completionSummary, dateOfCompletion } = req.body || {};
+    const { activityId, progressPercent, completionSummary, dateOfCompletion, message } = req.body || {};
     const doc = await WorkPlan.findById(req.params.id);
     if (!doc) return res.status(404).json({ ok: false, error: 'Not found' });
     let found;
@@ -345,6 +346,10 @@ exports.updateActivityProgress = async (req, res) => {
           if (dateOfCompletion) act.dateOfCompletion = dateOfCompletion;
           if (act.progressPercent >= 100) act.status = 'completed';
           else if (act.progressPercent > 0) act.status = 'in_progress';
+          if (message || progressPercent !== undefined) {
+            act.progressUpdates = act.progressUpdates || [];
+            act.progressUpdates.push({ user: req.user?._id, progressPercent, message });
+          }
           found = act;
         }
       });
@@ -353,6 +358,7 @@ exports.updateActivityProgress = async (req, res) => {
     doc.recalculateProgress();
     pushHistory(doc, 'progress_update', req.user?._id, { activityId, progressPercent });
     await doc.save();
+    // Return only the updated activity timeline along with aggregate to minimize payload? For now send whole doc
     res.json({ ok: true, item: doc });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });

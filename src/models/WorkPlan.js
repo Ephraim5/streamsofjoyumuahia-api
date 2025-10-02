@@ -21,6 +21,14 @@ const ActivitySchema = new mongoose.Schema({
     message: String,
     createdAt: { type: Date, default: Date.now }
   }],
+  // Detailed progress updates timeline (UnitLeader authored incremental progress with optional message)
+  progressUpdates: [{
+    _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    progressPercent: { type: Number, min:0, max:100 },
+    message: { type: String, default: '' },
+    createdAt: { type: Date, default: Date.now }
+  }],
   comments: [{
     _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
