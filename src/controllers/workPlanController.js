@@ -54,10 +54,19 @@ exports.listWorkPlans = async (req, res) => {
     const filter = {};
     if (status) filter.status = status;
     if (q) filter.title = { $regex: q, $options: 'i' };
-    // Only scope by unit for non-SuperAdmin roles
+    // Only scope by unit for non-SuperAdmin roles. Include legacy docs (missing unit) owned by the current user
+    // so Unit Leaders still see their historical plans created before unit field was added.
     if (req.user && req.user.activeRole !== 'SuperAdmin') {
       const unitId = deriveActiveUnitId(req.user, req);
-      if(unitId) filter.unit = unitId;
+      if (unitId) {
+        // Instead of strict filter.unit = unitId, widen scope with $or.
+        // Top-level status/q filters (already on filter) will AND with this $or.
+        filter.$or = [
+          { unit: unitId },
+            // legacy: no unit stored but owned by current user
+          { unit: { $exists: false }, owner: req.user._id }
+        ];
+      }
     }
     const skip = (Number(page) - 1) * Number(limit);
     const [items, total] = await Promise.all([
