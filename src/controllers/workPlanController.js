@@ -369,7 +369,7 @@ exports.updateActivityProgress = async (req, res) => {
 exports.setSuccessRate = async (req,res)=>{
   try {
     ensureSuperAdmin(req.user);
-    const { rate, category } = req.body || {};
+    const { rate, category, feedback } = req.body || {};
     if(rate === undefined) return res.status(400).json({ ok:false, error:'rate required' });
     if(rate < 0 || rate > 100) return res.status(400).json({ ok:false, error:'rate must be 0-100' });
     const doc = await WorkPlan.findById(req.params.id);
@@ -384,12 +384,15 @@ exports.setSuccessRate = async (req,res)=>{
     doc.successCategory = cat;
     doc.successRatedAt = new Date();
     doc.successRatedBy = req.user?._id;
+    if(typeof feedback === 'string' && feedback.trim()){
+      doc.successFeedback = feedback.trim();
+    }
     // Immediate status finalization on rating (any value 0-100 is considered final now)
     if(doc.status !== 'completed'){
       doc.status = 'completed';
       pushHistory(doc,'auto_completed', req.user?._id, { reason:'success rated' });
     }
-    pushHistory(doc,'success_rated', req.user?._id, { rate, category: cat });
+    pushHistory(doc,'success_rated', req.user?._id, { rate, category: cat, hasFeedback: !!(feedback && feedback.trim()) });
     await doc.save();
     res.json({ ok:true, item: doc });
   } catch(e){

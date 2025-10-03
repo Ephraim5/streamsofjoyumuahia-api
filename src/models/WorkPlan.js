@@ -105,6 +105,8 @@ const WorkPlanSchema = new mongoose.Schema({
   successCategory: { type: String, enum:['low','good','perfect'], default: undefined },
   successRatedAt: { type: Date },
   successRatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  // Narrative feedback provided by SuperAdmin when setting final success rate (optional)
+  successFeedback: { type: String },
   // General discussion/comments thread (distinct from version history)
   comments: [{
     _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
