@@ -53,7 +53,7 @@ module.exports = { start, signToken };
 // Body: { userId, email, title, firstName, middleName, surname, password }
 module.exports.completeSuperAdmin = async (req, res) => {
   try {
-    const { userId, email, title, firstName, middleName, surname, password } = req.body;
+    const { userId, email, title, firstName, middleName, surname, password, phone } = req.body;
     if (!userId || !email || !firstName || !surname || !password) {
       return res.status(400).json({ ok: false, message: 'Missing required fields' });
     }
@@ -71,10 +71,30 @@ module.exports.completeSuperAdmin = async (req, res) => {
     user.firstName = firstName || user.firstName;
     user.middleName = middleName || user.middleName;
     user.surname = surname || user.surname;
+    if (phone) {
+      const existingPhone = await User.findOne({ phone: phone });
+      if (existingPhone && existingPhone._id.toString() !== user._id.toString()) {
+        return res.status(400).json({ ok:false, message:'Phone already in use' });
+      }
+      user.phone = phone; // assume already normalized on client side; could import normalize if needed
+    }
     const bcrypt = require('bcrypt');
     user.passwordHash = await bcrypt.hash(password, 10);
     user.isVerified = true;
     if (!user.activeRole) user.activeRole = 'SuperAdmin';
+    // Attach default organization/church if not yet set
+    if (!user.organization || !user.church) {
+      try {
+        const Org = require('../models/Organization');
+        const Church = require('../models/Church');
+        const org = await Org.findOne({ slug: 'streams-of-joy' });
+        const church = await Church.findOne({ slug: 'soj-umuahia' });
+        if (org && !user.organization) user.organization = org._id;
+        if (church && !user.church) user.church = church._id;
+        if (church && !(user.churches||[]).some(c=>c.toString()===church._id.toString())) user.churches = [church._id];
+      } catch (e) { /* non-fatal */ }
+    }
+    if (user.multi === undefined) user.multi = false;
     await user.save();
   // Registration no longer returns a JWT. Client must call /api/auth/login afterwards.
   res.json({ ok: true, userId: user._id });

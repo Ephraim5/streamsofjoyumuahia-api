@@ -1,8 +1,11 @@
 const mongoose = require('mongoose');
 
 const RoleSchema = new mongoose.Schema({
-  role: { type: String, enum: ['SuperAdmin','UnitLeader','Member'], required: true },
+  role: { type: String, enum: ['SuperAdmin','MinistryAdmin','UnitLeader','Member'], required: true },
   unit: { type: mongoose.Schema.Types.ObjectId, ref: 'Unit', default: null },
+  // For MinistryAdmin association (church + ministryName). UnitLeader/Member derive church via unit.
+  church: { type: mongoose.Schema.Types.ObjectId, ref: 'Church', default: null },
+  ministryName: { type: String, default: null },
   duties: { type: [String], default: [] }
 });
 
@@ -16,6 +19,11 @@ const UserSchema = new mongoose.Schema({
   passwordHash: { type: String },
   isVerified: { type: Boolean, default: false },
   roles: { type: [RoleSchema], default: [] },
+  // Hierarchy references
+  organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', default: null },
+  church: { type: mongoose.Schema.Types.ObjectId, ref: 'Church', default: null }, // primary church context
+  churches: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Church' }], // for multi superadmin management scope
+  multi: { type: Boolean, default: false }, // SuperAdmin multi-church capability
   profile: {
     gender: String,
     dob: Date,
@@ -27,7 +35,7 @@ const UserSchema = new mongoose.Schema({
     avatar: String
   },
   approved: { type: Boolean, default: false }, // business approval separate from identity verification
-  activeRole: { type: String, enum: ['SuperAdmin','UnitLeader','Member'], default: null },
+  activeRole: { type: String, enum: ['SuperAdmin','MinistryAdmin','UnitLeader','Member'], default: null },
   createdAt: { type: Date, default: Date.now }
 });
 

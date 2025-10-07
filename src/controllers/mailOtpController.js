@@ -106,15 +106,29 @@ exports.verifyMailOtp = async (req, res) => {
     // If a user already exists we just return its id; else create minimal pending user
     let user = await User.findOne({ email });
     if (!user) {
+      // Attempt to attach default organization & church
+      let orgId = null, churchId = null;
+      try {
+        const Org = require('../models/Organization');
+        const Church = require('../models/Church');
+        const org = await Org.findOne({ slug: 'streams-of-joy' });
+        if (org) orgId = org._id;
+        const church = await Church.findOne({ slug: 'soj-umuahia' });
+        if (church) churchId = church._id;
+      } catch (e) { /* non-fatal */ }
       user = await User.create({
         email,
         firstName: 'Pending',
         surname: 'User',
-        phone: 'PENDING_' + Date.now(), // placeholder to satisfy required phone; will update later
+        phone: 'PENDING_' + Date.now(), // placeholder
         isVerified: true,
         approved: false,
         roles: [],
-        activeRole: null
+        activeRole: null,
+        organization: orgId,
+        church: churchId,
+        churches: churchId ? [churchId] : [],
+        multi: false
       });
     }
     return res.json({ ok: true, message: 'Email verified.', userId: user._id, existing: !!user.passwordHash, approved: user.approved });
@@ -130,7 +144,7 @@ exports.completeRegularRegistration = async (req, res) => {
     const {
       userId, firstName, surname, middleName, activeRole,
       unitsLed = [], unitsMember = [], gender, dob, occupation,
-      employmentStatus, maritalStatus, password
+      employmentStatus, maritalStatus, password, phone
     } = req.body || {};
     if (!userId || !firstName || !surname || !activeRole || !password) {
       return res.status(400).json({ ok: false, message: 'Missing required fields' });
@@ -138,7 +152,7 @@ exports.completeRegularRegistration = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ ok: false, message: 'User not found' });
     if (user.passwordHash) return res.status(400).json({ ok: false, message: 'Already completed registration' });
-    user.firstName = firstName;
+  user.firstName = firstName;
     user.surname = surname;
     user.middleName = middleName || '';
     user.activeRole = activeRole;
@@ -171,6 +185,25 @@ exports.completeRegularRegistration = async (req, res) => {
     if (maritalStatus) user.profile.maritalStatus = maritalStatus;
     // password
     user.passwordHash = await require('bcrypt').hash(password, 10);
+    if (phone) {
+      const existingPhone = await User.findOne({ phone: phone });
+      if (existingPhone && existingPhone._id.toString() !== user._id.toString()) {
+        return res.status(400).json({ ok:false, message:'Phone already in use' });
+      }
+      user.phone = phone; // assume normalization on client; reuse existing util if needed
+    }
+    // Attach default hierarchy if missing
+    if (!user.organization || !user.church) {
+      try {
+        const Org = require('../models/Organization');
+        const Church = require('../models/Church');
+        const org = await Org.findOne({ slug: 'streams-of-joy' });
+        const church = await Church.findOne({ slug: 'soj-umuahia' });
+        if (org && !user.organization) user.organization = org._id;
+        if (church && !user.church) user.church = church._id;
+        if (church && !(user.churches||[]).some(c=>c.toString()===church._id.toString())) user.churches = [church._id];
+      } catch (e) { /* non-fatal */ }
+    }
     user.isVerified = true;
     user.approved = false; // must be approved by SuperAdmin or UnitLeader (if member)
     await user.save();

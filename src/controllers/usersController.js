@@ -4,6 +4,20 @@ const Unit = require('../models/Unit');
 const Soul = require('../models/Soul');
 const { normalizeNigeriaPhone } = require('../utils/phone');
 const AccessCode = require('../models/AccessCode');
+const { normalizeNigeriaPhone: normPhone } = require('../utils/phone');
+
+// Public phone existence check: POST /api/users/check-phone { phone }
+async function checkPhone(req,res){
+  try {
+    let { phone } = req.body || {};
+    if(!phone) return res.status(400).json({ ok:false, message:'phone required' });
+    phone = normPhone(phone, true);
+    const existing = await User.findOne({ phone });
+    return res.json({ ok:true, exists: !!existing });
+  } catch(e){
+    return res.status(500).json({ ok:false, message:'Lookup failed', error:e.message });
+  }
+}
 
 // Public minimal email lookup (used by onboarding). Returns limited safe fields.
 async function lookupEmail(req, res) {
@@ -295,4 +309,4 @@ async function rejectUser(req, res) {
   }
 }
 
-module.exports = { getMe, updateUser, listUsers, lookupEmail, getUserById, changePassword, addRole, createSuperAdmin, rejectUser };
+module.exports = { getMe, updateUser, listUsers, lookupEmail, getUserById, changePassword, addRole, createSuperAdmin, rejectUser, checkPhone };
