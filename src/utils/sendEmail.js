@@ -49,22 +49,60 @@ const sendEmail = async (to, subject, html) => {
   // 1. Try SMTP if configured (or if smtpOnly forced)
   if (preferSmtp || smtpOnly) {
     try {
-      const transport = nodemailer.createTransport({
-        host: process.env.EMAIL_HOST,
-        port: process.env.EMAIL_PORT ? Number(process.env.EMAIL_PORT) : 465,
-        secure: (process.env.EMAIL_SECURE || 'true') === 'true',
-        service: process.env.EMAIL_SERVICE || undefined,
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-        tls: {
-          rejectUnauthorized: false,
-        },
-      });
-      const info = await transport.sendMail({ from: fullFrom, to, subject, html });
-      console.log('[email] SMTP sent', { id: info.messageId, to });
-      return { provider: 'smtp', id: info.messageId, from: fullFrom };
+      const rawHost = (process.env.EMAIL_HOST || '').trim();
+      const portPrimary = process.env.EMAIL_PORT ? Number(process.env.EMAIL_PORT) : 465;
+      const securePrimary = (process.env.EMAIL_SECURE || 'true') === 'true';
+      const connTimeout = process.env.EMAIL_CONN_TIMEOUT_MS ? Number(process.env.EMAIL_CONN_TIMEOUT_MS) : 8000;
+      const greetTimeout = process.env.EMAIL_GREETING_TIMEOUT_MS ? Number(process.env.EMAIL_GREETING_TIMEOUT_MS) : 8000;
+      const sockTimeout = process.env.EMAIL_SOCKET_TIMEOUT_MS ? Number(process.env.EMAIL_SOCKET_TIMEOUT_MS) : 10000;
+      const tryAlt = (process.env.EMAIL_TRY_ALT_PORT === 'true');
+      if (process.env.EMAIL_DEBUG === 'true') {
+        console.log('[email][smtp] Attempting primary transport', { host: rawHost, port: portPrimary, secure: securePrimary, connTimeout, greetTimeout, sockTimeout });
+      }
+
+      async function attemptSmtp(host, port, secure, label='primary') {
+        const transport = nodemailer.createTransport({
+          host,
+          port,
+            secure,
+          service: process.env.EMAIL_SERVICE || undefined,
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+          },
+          connectionTimeout: connTimeout,
+          greetingTimeout: greetTimeout,
+          socketTimeout: sockTimeout,
+          tls: { rejectUnauthorized: false },
+        });
+        const info = await transport.sendMail({ from: fullFrom, to, subject, html });
+        console.log(`[email] SMTP sent (${label})`, { id: info.messageId, to });
+        return { provider: 'smtp', id: info.messageId, from: fullFrom };
+      }
+
+      try {
+        return await attemptSmtp(rawHost, portPrimary, securePrimary, 'primary');
+      } catch (primaryErr) {
+        const code = classify(primaryErr);
+        if (process.env.EMAIL_DEBUG === 'true') {
+          console.warn('[email][smtp] Primary attempt failed', { code, message: primaryErr.message });
+        }
+        // Optional automatic fallback to alt port 587 STARTTLS
+        if (tryAlt && portPrimary !== 587) {
+          try {
+            if (process.env.EMAIL_DEBUG === 'true') {
+              console.log('[email][smtp] Trying alternate port 587 (STARTTLS)');
+            }
+            return await attemptSmtp(rawHost, 587, false, 'alt-587');
+          } catch (altErr) {
+            if (process.env.EMAIL_DEBUG === 'true') {
+              console.warn('[email][smtp] Alt 587 attempt failed', { code: classify(altErr), message: altErr.message });
+            }
+            throw altErr; // bubble to outer catch for smtpOnly logic
+          }
+        }
+        throw primaryErr;
+      }
     } catch (smtpErr) {
       const code = classify(smtpErr);
       if (smtpOnly) {
