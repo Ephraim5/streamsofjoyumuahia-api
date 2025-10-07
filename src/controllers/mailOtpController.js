@@ -1,5 +1,6 @@
 const MailOtp = require('../models/MailOtp');
 const sendEmail = require('../utils/sendEmail');
+const { buildOtpEmail } = require('../utils/otpEmailTemplate');
 const User = require('../models/User');
 const Unit = require('../models/Unit');
 
@@ -24,13 +25,13 @@ exports.sendMailOtp = async (req, res) => {
     }
 
     // Simple throttle: if an OTP was created less than 45 seconds ago, block resend
-    const existing = await MailOtp.findOne({ email }).lean();
-    const user = await User.findOne({ email })
+  const existing = await MailOtp.findOne({ email }).lean();
+  const user = await User.findOne({ email });
 
     if (existing && Date.now() - new Date(existing.createdAt).getTime() < 45 * 1000) {
       return res.status(429).json({ ok: false, message: 'Please wait before requesting another code.' });
     }
-    if (user.isVerified) {
+    if (user && user.isVerified) {
       return res.status(200).json({
         ok: true, 
         message: 'Email not sent UAV',
@@ -50,10 +51,11 @@ exports.sendMailOtp = async (req, res) => {
     }
 
     try {
+      const html = buildOtpEmail({ code: otp, minutesValid: 10, supportEmail: process.env.SUPPORT_EMAIL || 'support@streamsofjoyumuahia.org' });
       const sendResult = await sendEmail(
         email,
         'Your Streams of Joy Verification Code',
-        `<div style='font-size:1.2em'>Your verification code is <b>${otp}</b>. It expires in 10 minutes.</div>`
+        html
       );
       if (process.env.EMAIL_DEBUG === 'true') {
         console.log('[mailOtp] Email dispatch success', { email, provider: sendResult?.provider, from: sendResult?.from });

@@ -1,6 +1,7 @@
-// Resend-only implementation (SMTP removed)
+// Hybrid email sender: prefers Nodemailer (SMTP) if configured, else falls back to Resend API.
 let Resend = null;
 try { Resend = require('resend').Resend; } catch (_) { /* dependency should exist */ }
+const nodemailer = require('nodemailer');
 const { getResendConfig } = require('./resendConfig');
 
 class EmailSendError extends Error {
@@ -37,24 +38,46 @@ const sendEmail = async (to, subject, html) => {
     return { skipped: true };
   }
   if (!to) throw new Error('Missing recipient');
+
+  const preferSmtp = process.env.EMAIL_SERVICE || process.env.EMAIL_HOST;
+  const fromName = process.env.EMAIL_FROM_NAME || 'Streams of Joy Umuahia';
+  const explicitFrom = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'onboarding@resend.dev';
+  const fullFrom = /</.test(explicitFrom) ? explicitFrom : `${fromName} <${explicitFrom}>`;
+
+  // 1. Try SMTP if configured
+  if (preferSmtp) {
+    try {
+      const transport = nodemailer.createTransport({
+        host: process.env.EMAIL_HOST,
+        port: process.env.EMAIL_PORT ? Number(process.env.EMAIL_PORT) : 465,
+        secure: (process.env.EMAIL_SECURE || 'true') === 'true',
+        service: process.env.EMAIL_SERVICE || undefined,
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+        tls: {
+          rejectUnauthorized: false,
+        },
+      });
+      const info = await transport.sendMail({ from: fullFrom, to, subject, html });
+      console.log('[email] SMTP sent', { id: info.messageId, to });
+      return { provider: 'smtp', id: info.messageId, from: fullFrom };
+    } catch (smtpErr) {
+      const code = classify(smtpErr);
+      console.warn('[email] SMTP failed, falling back to Resend', { code, err: smtpErr.message });
+      // Fall through to Resend fallback
+    }
+  }
+
+  // 2. Resend fallback
   try {
     const { apiKey } = getResendConfig();
-    if (!apiKey) {
-      throw new Error('Missing RESEND_API_KEY');
-    }
+    if (!apiKey) throw new Error('Missing RESEND_API_KEY');
     const client = resendClient(apiKey);
-    // Hard-coded test sender as requested (Resend test domain)
-    const primaryFrom = 'onboarding@resend.dev';
-    if (process.env.EMAIL_DEBUG === 'true') {
-      console.log('[email] Forcing test sender onboarding@resend.dev (ignoring configured from)');
-    }
+    const primaryFrom = explicitFrom.includes('@') ? explicitFrom : 'onboarding@resend.dev';
     const attempt = async (fromAddr, label='primary') => {
-      const result = await client.emails.send({
-        from: `Streams Of Joy Mobile <${fromAddr}>`,
-        to,
-        subject,
-        html
-      });
+      const result = await client.emails.send({ from: fullFrom.replace(explicitFrom, fromAddr), to, subject, html });
       if (result?.error) throw new Error(result.error.message || 'Unknown Resend error');
       console.log(`Email sent via Resend (${label}) to ${to}`);
       return { provider: 'resend', id: result?.data?.id, from: fromAddr };
@@ -64,7 +87,7 @@ const sendEmail = async (to, subject, html) => {
     } catch (inner) {
       const codeInner = classify(inner);
       if (codeInner === 'EMAIL_DOMAIN_UNVERIFIED' && process.env.RESEND_ALLOW_TEST_FROM === 'true') {
-        console.warn('[email] Domain unverified. Retrying with Resend test sender.');
+        console.warn('[email] Domain unverified. Retrying with test sender.');
         return await attempt('onboarding@resend.dev', 'test-fallback');
       }
       throw inner;
