@@ -87,21 +87,39 @@ const sendEmail = async (to, subject, html) => {
         if (process.env.EMAIL_DEBUG === 'true') {
           console.warn('[email][smtp] Primary attempt failed', { code, message: primaryErr.message });
         }
-        // Optional automatic fallback to alt port 587 STARTTLS
-        if (tryAlt && portPrimary !== 587) {
+        // Build fallback attempts list (ports / host variants)
+        const attempts = [];
+        const baseDomain = rawHost.replace(/^(mail\.|smtp\.)/i, '');
+        const hostVariants = [rawHost];
+        if (!/^(mail|smtp)\./i.test(rawHost)) {
+          hostVariants.push('mail.' + baseDomain, 'smtp.' + baseDomain);
+        } else {
+          // If starts with mail., add smtp. variant; vice versa
+          if (/^mail\./i.test(rawHost)) hostVariants.push('smtp.' + baseDomain);
+          if (/^smtp\./i.test(rawHost)) hostVariants.push('mail.' + baseDomain);
+        }
+        // Remove duplicates
+        const uniqueHosts = [...new Set(hostVariants)];
+        // Always try alt 587 STARTTLS unless primary was already 587 secure=false
+        const wantAltPort = portPrimary !== 587;
+        uniqueHosts.forEach(h => {
+          if (wantAltPort) attempts.push({ host: h, port: 587, secure: false, label: 'alt-587' });
+        });
+        // If explicit flag to try alt port earlier, attempts already includes alt; this broadens even without flag
+        // Execute attempts sequentially
+        for (const att of attempts) {
           try {
             if (process.env.EMAIL_DEBUG === 'true') {
-              console.log('[email][smtp] Trying alternate port 587 (STARTTLS)');
+              console.log('[email][smtp] Fallback attempt', att);
             }
-            return await attemptSmtp(rawHost, 587, false, 'alt-587');
-          } catch (altErr) {
+            return await attemptSmtp(att.host, att.port, att.secure, att.label + ':' + att.host);
+          } catch (e2) {
             if (process.env.EMAIL_DEBUG === 'true') {
-              console.warn('[email][smtp] Alt 587 attempt failed', { code: classify(altErr), message: altErr.message });
+              console.warn('[email][smtp] Fallback failed', { host: att.host, port: att.port, msg: e2.message });
             }
-            throw altErr; // bubble to outer catch for smtpOnly logic
           }
         }
-        throw primaryErr;
+        throw primaryErr; // none succeeded
       }
     } catch (smtpErr) {
       const code = classify(smtpErr);
