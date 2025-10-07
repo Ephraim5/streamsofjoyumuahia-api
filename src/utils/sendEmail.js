@@ -44,8 +44,10 @@ const sendEmail = async (to, subject, html) => {
   const explicitFrom = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'onboarding@resend.dev';
   const fullFrom = /</.test(explicitFrom) ? explicitFrom : `${fromName} <${explicitFrom}>`;
 
-  // 1. Try SMTP if configured
-  if (preferSmtp) {
+  const smtpOnly = (process.env.EMAIL_SMTP_ONLY === 'true');
+
+  // 1. Try SMTP if configured (or if smtpOnly forced)
+  if (preferSmtp || smtpOnly) {
     try {
       const transport = nodemailer.createTransport({
         host: process.env.EMAIL_HOST,
@@ -65,12 +67,20 @@ const sendEmail = async (to, subject, html) => {
       return { provider: 'smtp', id: info.messageId, from: fullFrom };
     } catch (smtpErr) {
       const code = classify(smtpErr);
-      console.warn('[email] SMTP failed, falling back to Resend', { code, err: smtpErr.message });
-      // Fall through to Resend fallback
+      if (smtpOnly) {
+        console.error('[email] SMTP failed and SMTP-only mode enabled', { code, err: smtpErr.message });
+        throw new EmailSendError('Email delivery failed (SMTP only mode).', code, smtpErr);
+      } else {
+        console.warn('[email] SMTP failed, falling back to Resend', { code, err: smtpErr.message });
+      }
     }
   }
 
-  // 2. Resend fallback
+  if (smtpOnly) {
+    throw new EmailSendError('SMTP only mode: no fallback configured.', 'EMAIL_SMTP_ONLY_MODE');
+  }
+
+  // 2. Resend fallback (skipped if smtpOnly already returned)
   try {
     const { apiKey } = getResendConfig();
     if (!apiKey) throw new Error('Missing RESEND_API_KEY');
