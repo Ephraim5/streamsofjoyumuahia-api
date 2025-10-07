@@ -49,9 +49,20 @@ const sendEmail = async (to, subject, html) => {
   // 1. Try SMTP if configured (or if smtpOnly forced)
   if (preferSmtp || smtpOnly) {
     try {
-      const rawHost = (process.env.EMAIL_HOST || '').trim();
-      const portPrimary = process.env.EMAIL_PORT ? Number(process.env.EMAIL_PORT) : 465;
-      const securePrimary = (process.env.EMAIL_SECURE || 'true') === 'true';
+      let rawHost = (process.env.EMAIL_HOST || '').trim();
+      let portPrimary = process.env.EMAIL_PORT ? Number(process.env.EMAIL_PORT) : 465;
+      let securePrimary = (process.env.EMAIL_SECURE || 'true') === 'true';
+      const svc = (process.env.EMAIL_SERVICE || '').toLowerCase();
+      // Special handling for Gmail service: enforce known host/port defaults
+      if (svc === 'gmail') {
+        rawHost = 'smtp.gmail.com';
+        // If user didn't specify port, default to 465 implicit TLS; allow override via env
+        if (!process.env.EMAIL_PORT) portPrimary = 465;
+        if (!process.env.EMAIL_SECURE) securePrimary = true;
+        if (process.env.EMAIL_DEBUG === 'true') {
+          console.log('[email][smtp] Gmail service override engaged', { host: rawHost, port: portPrimary, secure: securePrimary });
+        }
+      }
       const connTimeout = process.env.EMAIL_CONN_TIMEOUT_MS ? Number(process.env.EMAIL_CONN_TIMEOUT_MS) : 8000;
       const greetTimeout = process.env.EMAIL_GREETING_TIMEOUT_MS ? Number(process.env.EMAIL_GREETING_TIMEOUT_MS) : 8000;
       const sockTimeout = process.env.EMAIL_SOCKET_TIMEOUT_MS ? Number(process.env.EMAIL_SOCKET_TIMEOUT_MS) : 10000;
