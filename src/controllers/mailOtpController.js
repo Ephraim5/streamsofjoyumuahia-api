@@ -46,6 +46,18 @@ exports.sendMailOtp = async (req, res) => {
       { email, otp, createdAt: new Date(), attempts: 0 },
       { upsert: true }
     );
+    // Developer bypass to unblock onboarding when SMTP is misconfigured
+    if (process.env.ALLOW_FAKE_OTP === 'true') {
+      console.warn('[mailOtp] ALLOW_FAKE_OTP=true – skipping real email send and returning OTP in response (DO NOT ENABLE IN PRODUCTION).');
+      return res.json({
+        ok: true,
+        message: 'OTP (dev mode) generated.',
+        role: user ? user.activeRole : null,
+        user,
+        userId: user ? user._id : undefined,
+        devOtp: otp
+      });
+    }
     if (process.env.EMAIL_DEBUG === 'true') {
       console.log('[mailOtp] Prepared OTP record', { email, otp, createdAt: new Date().toISOString() });
     }
