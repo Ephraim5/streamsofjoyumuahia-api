@@ -10,11 +10,44 @@ const Achievement = require('../models/Achievement');
 const Finance = require('../models/Finance');
 
 async function createUnit(req, res) {
-  // only SuperAdmin
-  if (!req.user.roles.some(r=>r.role==='SuperAdmin')) return res.status(403).json({ error: 'Requires SuperAdmin' });
-  const { name, description } = req.body;
-  const unit = await Unit.create({ name, description });
-  res.json({ unit });
+  try {
+    const actor = req.user;
+    const isSuper = (actor.roles||[]).some(r=>r.role==='SuperAdmin') || actor.activeRole==='SuperAdmin';
+    const isMinAdmin = (actor.roles||[]).some(r=>r.role==='MinistryAdmin') || actor.activeRole==='MinistryAdmin';
+    if (!isSuper && !isMinAdmin) return res.status(403).json({ ok:false, message: 'Forbidden' });
+
+    let { name, description, churchId, ministryName } = req.body || {};
+    if (!name) return res.status(400).json({ ok:false, message:'name required' });
+    name = String(name).trim();
+    if (ministryName) ministryName = String(ministryName).trim();
+    if (churchId) churchId = String(churchId);
+
+    // Scope checks for MinistryAdmin
+    if (isMinAdmin && !isSuper) {
+      const role = (actor.roles||[]).find(r=>r.role==='MinistryAdmin');
+      if (!role) return res.status(403).json({ ok:false, message:'Ministry scope missing' });
+      if (!churchId) churchId = role.church ? String(role.church) : (actor.church ? String(actor.church) : null);
+      if (!churchId) return res.status(400).json({ ok:false, message:'churchId required for MinistryAdmin' });
+      if (!ministryName) ministryName = role.ministryName || null;
+      if (!ministryName) return res.status(400).json({ ok:false, message:'ministryName required for MinistryAdmin' });
+    }
+
+    // For SuperAdmin, if no explicit churchId provided, try active context
+    if (isSuper && !churchId) churchId = actor.church ? String(actor.church) : null;
+
+    // Optional duplicate check within church+ministry scope (still global unique by name at schema level)
+    const dupFilter = {};
+    if (churchId) dupFilter.church = churchId;
+    if (ministryName) dupFilter.ministryName = ministryName;
+    dupFilter.name = name;
+    const existing = await Unit.findOne(dupFilter);
+    if (existing) return res.status(400).json({ ok:false, message:'A unit with this name already exists in the selected ministry/church' });
+
+    const unit = await Unit.create({ name, description, church: churchId || undefined, ministryName: ministryName || null });
+    return res.json({ ok:true, unit });
+  } catch(e){
+    return res.status(500).json({ ok:false, message:'Failed to create unit', error:e.message });
+  }
 }
 
 async function addMember(req, res) {
@@ -41,8 +74,28 @@ async function addMember(req, res) {
 }
 
 async function listUnits(req, res) {
-  const units = await Unit.find().populate('leaders members', 'firstName surname phone email');
-  res.json({ units });
+  try {
+    const actor = req.user;
+    const isSuper = (actor.roles||[]).some(r=>r.role==='SuperAdmin') || actor.activeRole==='SuperAdmin';
+    const { churchId, ministry } = req.query;
+    const filter = {};
+    if (churchId) filter.church = churchId;
+    if (ministry) filter.ministryName = ministry;
+
+    // Non-super users limited by their roles
+    if (!isSuper) {
+      // MinistryAdmin: same church/ministry
+      const minRole = (actor.roles||[]).find(r=>r.role==='MinistryAdmin');
+      if (minRole) {
+        filter.church = minRole.church || actor.church || undefined;
+        if (minRole.ministryName) filter.ministryName = minRole.ministryName;
+      }
+    }
+    const units = await Unit.find(filter).populate('leaders members', 'firstName surname phone email').lean();
+    return res.json({ ok:true, units });
+  } catch(e){
+    return res.status(500).json({ ok:false, message:'Failed to list units', error:e.message });
+  }
 }
 
 // Public listing (no auth) for registration wizard
@@ -72,8 +125,15 @@ async function listUnitsDashboard(req, res) {
     days = Math.min(Math.max(days, 1), 60); // clamp 1..60
     const cutoff = new Date(Date.now() - days*24*60*60*1000);
 
-    // Load all units with leaders and members
-    const units = await Unit.find().select('name leaders members')
+    // Load all units with leaders and members (optionally filter by ministry and active church)
+    const filter = {};
+    const filterMin = (req.query.ministry||'').toString().trim();
+    if (filterMin) filter.ministryName = filterMin;
+    // If actor has an active church, scope to it unless explicit override (for safety)
+    const activeChurch = actor.church ? String(actor.church) : null;
+    if (activeChurch) filter.church = activeChurch;
+
+    const units = await Unit.find(filter).select('name leaders members ministryName church')
       .populate('leaders', 'firstName middleName surname')
       .lean();
 
@@ -174,7 +234,9 @@ async function listUnitsDashboard(req, res) {
         leaderName,
         membersCount,
         activeCount: activeSet.size,
-        lastReportAt: last
+        lastReportAt: last,
+        ministryName: u.ministryName || null,
+        church: u.church || null
       };
     });
 
