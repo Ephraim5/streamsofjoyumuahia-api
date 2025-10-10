@@ -235,8 +235,16 @@ async function listChurchesForSwitch (req,res){
       return {
         _id: ch._id,
         name: ch.name,
-        superAdmins: related.filter(u=> (u.roles||[]).some(r=>r.role==='SuperAdmin')).map(m=>({ _id:m._id, firstName:m.firstName, surname:m.surname })),
-        unitLeaders: related.filter(u=> (u.roles||[]).some(r=>r.role==='UnitLeader')).map(m=>({ _id:m._id, firstName:m.firstName, surname:m.surname }))
+        superAdmins: related
+          .filter(u=> (u.roles||[]).some(r=>r.role==='SuperAdmin'))
+          .map(m=>({ _id:m._id, firstName:m.firstName, surname:m.surname })),
+        ministryAdmins: related
+          .filter(u=> (u.roles||[]).some(r=>r.role==='MinistryAdmin'))
+          .map(m=>({ _id:m._id, firstName:m.firstName, surname:m.surname })),
+        // Retain for backward-compatibility; clients may ignore
+        unitLeaders: related
+          .filter(u=> (u.roles||[]).some(r=>r.role==='UnitLeader'))
+          .map(m=>({ _id:m._id, firstName:m.firstName, surname:m.surname }))
       };
     });
     return res.json({ ok:true, churches: perChurch });
