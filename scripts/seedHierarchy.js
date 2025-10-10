@@ -5,11 +5,14 @@ const mongoose = require('mongoose');
 const Organization = require('../src/models/Organization');
 const Church = require('../src/models/Church');
 
-(async function(){
+async function seedHierarchy() {
+  const closeAfter = !mongoose.connection?.readyState;
   try {
-    const uri = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/soj';
-    await mongoose.connect(uri);
-    console.log('[seedHierarchy] Connected');
+    if (!mongoose.connection || mongoose.connection.readyState === 0) {
+      const uri = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/soj';
+      await mongoose.connect(uri);
+      console.log('[seedHierarchy] Connected');
+    }
     const orgName = 'Streams of Joy';
     const orgSlug = 'streams-of-joy';
     let org = await Organization.findOne({ slug: orgSlug });
@@ -34,9 +37,20 @@ const Church = require('../src/models/Church');
       else console.log('[seedHierarchy] Church exists with ministries');
     }
     console.log('[seedHierarchy] Done');
-    process.exit(0);
+    return { ok: true };
   } catch (e) {
     console.error('[seedHierarchy] Failed', e);
-    process.exit(1);
+    return { ok: false, error: e.message };
+  } finally {
+    if (closeAfter) {
+      try { await mongoose.connection.close(); } catch {}
+    }
   }
-})();
+}
+
+module.exports = { seedHierarchy };
+
+// Allow running as a CLI script
+if (require.main === module) {
+  seedHierarchy().then(res => process.exit(res.ok ? 0 : 1));
+}

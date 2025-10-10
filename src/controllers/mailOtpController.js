@@ -9,9 +9,16 @@ function generateOtp() {
 }
 
 // POST /api/send-mail-otp { email }
+// Response patterns (all include ok boolean):
+//  200 { ok:true, status:'sent', message, userId?, role?, expiresInSeconds, cooldownSeconds }
+//  200 { ok:true, status:'verified', message:'Email already verified', userId, existing:true, approved, registrationCompleted }
+//  200 { ok:true, status:'sentDev', devOtp, message }
+//  429 { ok:false, status:'throttled', message, cooldownRemaining }
+//  502 { ok:false, status:'error', code, message }
 exports.sendMailOtp = async (req, res) => {
   try {
     let { email } = req.body || {};
+    console.log(req.body)
     if (!email || typeof email !== 'string') {
       return res.status(400).json({ ok: false, message: 'Email required.' });
     }
@@ -25,19 +32,26 @@ exports.sendMailOtp = async (req, res) => {
     }
 
     // Simple throttle: if an OTP was created less than 45 seconds ago, block resend
-  const existing = await MailOtp.findOne({ email }).lean();
-  const user = await User.findOne({ email });
-
-    if (existing && Date.now() - new Date(existing.createdAt).getTime() < 45 * 1000) {
-      return res.status(429).json({ ok: false, message: 'Please wait before requesting another code.' });
+    const existing = await MailOtp.findOne({ email }).lean();
+    const user = await User.findOne({ email });
+    if (existing) {
+      const delta = Date.now() - new Date(existing.createdAt).getTime();
+      const windowMs = 45 * 1000;
+      if (delta < windowMs) {
+        const cooldownRemaining = Math.ceil((windowMs - delta) / 1000);
+        return res.status(429).json({ ok: false, status: 'throttled', message: `Please wait ${cooldownRemaining}s before requesting another code.`, cooldownRemaining });
+      }
     }
     if (user && user.isVerified) {
       return res.status(200).json({
-        ok: true, 
-        message: 'Email not sent UAV',
+        ok: true,
+        status: 'verified',
+        message: 'Email already verified.',
         role: user ? user.activeRole : null,
-        user,
-        userId: user ? user._id : undefined
+        userId: user ? user._id : undefined,
+        approved: !!user.approved,
+        existing: !!user.passwordHash,
+        registrationCompleted: user.registrationCompleted !== false
       });
     }
     const otp = generateOtp();
@@ -47,15 +61,17 @@ exports.sendMailOtp = async (req, res) => {
       { upsert: true }
     );
     // Developer bypass to unblock onboarding when SMTP is misconfigured
+    const expiresInSeconds = 600; // 10 minutes validity window
     if (process.env.ALLOW_FAKE_OTP === 'true') {
       console.warn('[mailOtp] ALLOW_FAKE_OTP=true – skipping real email send and returning OTP in response (DO NOT ENABLE IN PRODUCTION).');
       return res.json({
         ok: true,
+        status: 'sentDev',
         message: 'OTP (dev mode) generated.',
         role: user ? user.activeRole : null,
-        user,
         userId: user ? user._id : undefined,
-        devOtp: otp
+        devOtp: otp,
+        expiresInSeconds
       });
     }
     if (process.env.EMAIL_DEBUG === 'true') {
@@ -83,15 +99,16 @@ exports.sendMailOtp = async (req, res) => {
       else if (code === 'EMAIL_FROM_INVALID') userMessage = 'Email sender incorrectly configured. Admin please fix from address.';
       const payload = { ok: false, message: userMessage, code };
       if (process.env.EMAIL_DEBUG === 'true' && original) payload.original = original;
-      return res.status(502).json(payload);
+      return res.status(502).json({ ...payload, status: 'error' });
     }
 
     return res.json({
       ok: true,
+      status: 'sent',
       message: 'OTP sent to email.',
       role: user ? user.activeRole : null,
-      user,
-      userId: user ? user._id : undefined
+      userId: user ? user._id : undefined,
+      expiresInSeconds
     });
   } catch (e) {
     console.error('sendMailOtp error', e);
@@ -158,7 +175,8 @@ exports.completeRegularRegistration = async (req, res) => {
     const {
       userId, firstName, surname, middleName, activeRole,
       unitsLed = [], unitsMember = [], gender, dob, occupation,
-      employmentStatus, maritalStatus, password, phone
+      employmentStatus, maritalStatus, password, phone,
+      ministryName, churchId
     } = req.body || {};
     if (!userId || !firstName || !surname || !activeRole || !password) {
       return res.status(400).json({ ok: false, message: 'Missing required fields' });
@@ -187,6 +205,23 @@ exports.completeRegularRegistration = async (req, res) => {
         console.warn('[completeRegularRegistration] Member with no unitsMember supplied', userId);
       }
       unitsMember.forEach(uId => roleEntries.push({ role: 'Member', unit: uId }));
+    } else if (activeRole === 'MinistryAdmin') {
+      if (!ministryName) {
+        return res.status(400).json({ ok:false, message:'ministryName required for MinistryAdmin' });
+      }
+      // Church scope optional; if not supplied fallback to existing user.church
+      const churchRef = churchId || user.church || null;
+      roleEntries.push({ role: 'MinistryAdmin', church: churchRef, ministryName });
+    } else if (activeRole === 'SuperAdmin') {
+      // App-based SuperAdmin registration (single-church) – requires approval by a multi SuperAdmin
+      // Ensure we don't already have a SuperAdmin role assigned
+      const already = (user.roles||[]).some(r=>r.role==='SuperAdmin');
+      if (!already) {
+        roleEntries.push({ role: 'SuperAdmin' });
+      }
+      // Mark as pending for superadmin approval workflow
+      user.superAdminPending = true;
+      user.multi = false; // app registrants are never multi at creation
     }
     // Merge with any existing roles (should be empty at this stage)
     user.roles = (user.roles || []).concat(roleEntries);
@@ -220,7 +255,8 @@ exports.completeRegularRegistration = async (req, res) => {
     }
     user.isVerified = true;
     user.approved = false; // must be approved by SuperAdmin or UnitLeader (if member)
-    await user.save();
+  user.registrationCompleted = true;
+  await user.save();
 
     // Update Unit documents to reflect leadership / membership
     const unitOps = [];
@@ -233,7 +269,9 @@ exports.completeRegularRegistration = async (req, res) => {
     if (unitOps.length) {
       try { await Promise.all(unitOps); } catch (e) { console.error('Unit linking failed', e.message); }
     }
-    return res.json({ ok: true, userId: user._id, approved: user.approved });
+  // Already saved earlier if no errors, ensure flag true
+  if (!user.registrationCompleted) { user.registrationCompleted = true; await user.save(); }
+  return res.json({ ok: true, userId: user._id, approved: user.approved, registrationCompleted: true, activeRole: user.activeRole });
   } catch (e) {
     console.error('completeRegularRegistration error', e);
     return res.status(500).json({ ok: false, message: 'Completion failed', error: e.message });

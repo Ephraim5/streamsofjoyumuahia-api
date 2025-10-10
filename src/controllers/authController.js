@@ -40,7 +40,9 @@ async function start(req, res) {
   if (!user) {
     return res.status(404).json({ ok: false, error: 'Number not registered. Contact your unit head.', goToPhoneNumberScreen: false, goToOtpScreen: false });
   } else {
-    return res.status(200).json({ ok: true, user,role:user.activeRole, message: 'Proceed to verify otp on client', goToPhoneNumberScreen: false, goToOtpScreen: true });
+    // Provide guidance flags. If user has not completed registration (no passwordHash or registrationCompleted false) client should route to full registration form after OTP, not login
+    const registrationCompleted = !!user.passwordHash && (user.registrationCompleted !== false);
+    return res.status(200).json({ ok: true, user, role:user.activeRole, registrationCompleted, message: 'Proceed to verify otp on client', goToPhoneNumberScreen: false, goToOtpScreen: true });
   }
 
 }
@@ -95,7 +97,8 @@ module.exports.completeSuperAdmin = async (req, res) => {
       } catch (e) { /* non-fatal */ }
     }
     if (user.multi === undefined) user.multi = false;
-    await user.save();
+  user.registrationCompleted = true;
+  await user.save();
   // Registration no longer returns a JWT. Client must call /api/auth/login afterwards.
   res.json({ ok: true, userId: user._id });
   } catch (e) {

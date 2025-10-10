@@ -48,6 +48,9 @@ async function lookupEmail(req, res) {
       exists: true,
       role: primaryRole,
       userId: user._id,
+      hasPassword: !!user.passwordHash,
+      registrationCompleted: user.registrationCompleted !== false,
+      approved: !!user.approved,
       user: {
         title: user.title || '',
         firstName: user.firstName || '',

@@ -10,7 +10,7 @@ exports.listChurches = async (req,res)=>{
   try {
     const q = req.query.q || '';
     const filter = q ? { name: new RegExp(q,'i') } : {};
-    const churches = await Church.find(filter).select('name slug organization ministries.name createdAt');
+  const churches = await Church.find(filter).select('_id name slug organization ministries.name createdAt');
     res.json({ ok:true, churches });
   } catch(e){
     res.status(500).json({ ok:false, message:'Failed to list churches', error:e.message });

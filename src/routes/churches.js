@@ -24,6 +24,9 @@ function ensure(fnName, fn) {
 	return fn;
 }
 
+// Public list for registration (no auth)
+router.get('/public', ensure('listChurches', listChurches));
+
 // Attach routes with guards so a missing handler does not crash the server at startup
 router.get('/', authMiddleware, ensure('listChurches', listChurches));
 router.post('/', authMiddleware, ensure('createChurch', createChurch));

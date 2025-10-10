@@ -7,6 +7,7 @@ const dotenv = require('dotenv');
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const connectDB = require('./config/db');
 const { seedUnits } = require('../scripts/seedUnits');
+const { seedHierarchy } = require('../scripts/seedHierarchy');
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -35,6 +36,7 @@ const pushRoutes = require('./routes/push');
 const workPlansRoutes = require('./routes/workPlans');
 const churchesRoutes = require('./routes/churches');
 const ministryAdminsRoutes = require('./routes/ministryAdmins');
+const superAdminsRoutes = require('./routes/superAdmins');
 // path already required above
 
 const cloudinary = require('cloudinary').v2;
@@ -82,13 +84,31 @@ connectDB().then(async () => {
   } catch (e) {
     console.warn('[startup] Failed to seed default units:', e.message);
   }
+
+  // Ensure default organization/church/ministries exist
+  try {
+    const res = await seedHierarchy();
+    if (res?.ok) {
+      console.log('[startup] Hierarchy seeding ensured.');
+    } else {
+      console.warn('[startup] Hierarchy seeding error:', res?.error || 'unknown');
+    }
+  } catch (e) {
+    console.warn('[startup] Failed to seed hierarchy:', e.message);
+  }
 });
 
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+/*
 app.get('/register', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/register.html'));
+}); */
+
+// Public first superadmin registration form (HTML) – creates initial multi superadmin or pending single
+app.get('/register-superadmin', (req,res)=>{
+  res.sendFile(path.join(__dirname, 'public/register-superadmin.html'));
 });
 
 
@@ -149,6 +169,7 @@ app.use('/api/push', pushRoutes);
 app.use('/api/workplans', workPlansRoutes);
 app.use('/api/churches', churchesRoutes);
 app.use('/api/ministry-admins', ministryAdminsRoutes);
+app.use('/api', superAdminsRoutes);
 
 // Lightweight health endpoint to verify cloudinary configuration (non-sensitive)
 app.get('/api/health/cloudinary', (req, res) => {

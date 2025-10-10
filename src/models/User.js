@@ -18,6 +18,8 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, default: '' },
   passwordHash: { type: String },
   isVerified: { type: Boolean, default: false },
+  // Indicates whether the user has completed the full multi-step registration form
+  registrationCompleted: { type: Boolean, default: false },
   roles: { type: [RoleSchema], default: [] },
   // Hierarchy references
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', default: null },
@@ -35,6 +37,8 @@ const UserSchema = new mongoose.Schema({
     avatar: String
   },
   approved: { type: Boolean, default: false }, // business approval separate from identity verification
+  // Specific to superadmin self-registration: indicates a superadmin request awaiting approval
+  superAdminPending: { type: Boolean, default: false },
   activeRole: { type: String, enum: ['SuperAdmin','MinistryAdmin','UnitLeader','Member'], default: null },
   createdAt: { type: Date, default: Date.now }
 });

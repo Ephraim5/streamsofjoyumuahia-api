@@ -1,0 +1,583 @@
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Streams of Joy • SuperAdmin Onboarding</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="/images/streamsofjoy.png" type="image/png" />
+  <link rel="apple-touch-icon" href="/images/streamsofjoy.png" />
+  <meta name="theme-color" content="#349DC5" />
+  <style>
+    :root{
+      --primary:#349DC5; /* app primary */
+      --ink:#0E2433;
+      --muted:#5a6b74;
+      --bg:#f5f7fb;
+      --card:#ffffff;
+    }
+    *{ box-sizing: border-box; }
+    body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, Noto Sans, "Apple Color Emoji","Segoe UI Emoji"; background:var(--bg); color:var(--ink); }
+    .shell{ min-height:100vh; display:grid; grid-template-columns: 1.2fr 1fr; }
+    .hero{ position:relative; padding:3vw; background:linear-gradient(135deg, #0E5F87, #2CA6FF); display:flex; flex-direction:column; justify-content:space-between; color:#fff; overflow:hidden; }
+  .hero .logo{ display:flex; align-items:center; gap:10px; }
+  .hero .logo img{ height:52px; }
+  .hero .logo .brand{ color:#ffffff; font-weight:800; letter-spacing:.2px; font-size: clamp(16px,1.6vw,20px); line-height:1; text-shadow:0 1px 2px rgba(0,0,0,.25) }
+    .hero h1{ margin:20px 0 8px; font-size: clamp(26px,3.2vw,40px); line-height:1.1; }
+    .hero p{ margin:0; font-size: clamp(14px,1.2vw,16px); opacity:.95 }
+    .hero .art{ margin-top:28px; display:flex; align-items:center; justify-content:center; }
+  .hero .art{ display:flex; align-items:center; justify-content:center; }
+  .hero .blob{ width:min(520px,78%); aspect-ratio: 16 / 10; border-radius:24px; position:relative; overflow:hidden; box-shadow:0 20px 40px rgba(0,0,0,.25); animation: float 6s ease-in-out infinite; }
+  .hero .blob::before{ content:""; position:absolute; inset:-20%; background: radial-gradient(60% 60% at 30% 30%, rgba(255,255,255,.18), transparent), radial-gradient(80% 80% at 80% 10%, rgba(255,255,255,.12), transparent); }
+  .hero .blobLayer{ position:absolute; inset:0; background: conic-gradient(from 210deg at 40% 30%, #0E5F87, #2CA6FF, #0E5F87); opacity:.9 }
+  .hero .blobOverlay{ position:absolute; inset:12px; border-radius:18px; background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06)); border:1px solid rgba(255,255,255,.18) }
+  .hero .shield{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center }
+  .hero .shield svg{ width:96px; height:96px; filter: drop-shadow(0 6px 18px rgba(0,0,0,.25)); opacity:.95 }
+    @keyframes float{ 0%,100%{ transform: translateY(0) } 50%{ transform: translateY(-10px) } }
+
+    .pane{ display:flex; align-items:center; justify-content:center; padding:4vw 3vw; }
+    .card{ width:100%; max-width:520px; background:var(--card); border-radius:18px; padding:28px; box-shadow: 0 10px 30px rgba(13,38,76,0.08); }
+    .card h2{ font-size:22px; margin:0 0 6px; color:var(--ink) }
+    .card .sub{ color:var(--muted); font-size:14px; margin-bottom:14px }
+  label{ display:block; font-weight:600; font-size:13px; margin-top:12px; color:#34454d }
+  input, select, datalist{ width:100%; padding:12px 14px; margin-top:8px; border:1px solid #d4dce1; border-radius:10px; font-size:14px; background:#fafcfe }
+  input:focus, select:focus, button:focus{ outline:none; box-shadow:none; border-color:#bfe2f2 }
+    .row{ display:grid; gap:14px; grid-template-columns:1fr 1fr }
+    .row-3{ display:grid; gap:14px; grid-template-columns:1.2fr 1fr 1fr }
+  button{ width:100%; margin-top:18px; background:var(--primary); color:#fff; border:none; padding:14px 16px; border-radius:10px; cursor:pointer; font-size:15px; font-weight:700; transition: transform .12s ease, box-shadow .12s ease }
+  button:hover{ transform: translateY(-1px); box-shadow:0 8px 18px rgba(13,38,76,.18) }
+  button:active{ transform: translateY(0) }
+  button:disabled{ background:#92c7de; cursor:not-allowed; box-shadow:none; transform:none }
+    .note{ font-size:12px; color:#56707d; margin-top:10px }
+    .success{ background:#e6f7ed; border:1px solid #8fd3ab; padding:.75rem; margin-top:1rem; border-radius:8px }
+    .error{ background:#fdecea; border:1px solid #f5a6a0; padding:.75rem; margin-top:1rem; border-radius:8px }
+    .badge{ display:inline-block; font-size:12px; padding:4px 8px; border-radius:999px; background:#e6f7ed; color:#0a6a3b; border:1px solid #8fd3ab; margin-left:8px }
+    .inline{ display:flex; gap:10px; align-items:end }
+    .inline > *{ flex:1 }
+    /* Avatar circle */
+    .avatarRow{ display:flex; align-items:center; gap:12px; margin-top:8px }
+    .avatarCircle{ width:64px; height:64px; border-radius:50%; border:4px solid #DDEAF2; background:#ffffff; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; cursor:pointer }
+    .avatarCircle .camera{ position:absolute; width:24px; height:24px; color:#2CA6FF }
+    .avatarCircle img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
+  /* Modal */
+  .modal-overlay{ position:fixed; inset:0; background:rgba(5,20,30,.46); display:none; align-items:center; justify-content:center; z-index:50 }
+  .modal{ width:100%; max-width:420px; background:#fff; border-radius:14px; box-shadow:0 18px 40px rgba(3,22,35,.35); padding:20px }
+  .modal h3{ margin:4px 0 0; font-size:18px }
+  .modal p{ margin:6px 0 12px; color:#4b5a63; font-size:13px }
+  .modal .row{ grid-template-columns: 1fr auto }
+  .close-x{ position:absolute; right:14px; top:10px; cursor:pointer; color:#39515e }
+  /* Toasts */
+  .toast{ position:fixed; right:16px; top:16px; z-index:60; display:flex; flex-direction:column; gap:8px }
+  .toast .t{ min-width:240px; max-width:420px; padding:10px 12px; border-radius:10px; color:#0e2530; background:#e8f4fb; border:1px solid #bfe2f2; box-shadow:0 2px 10px rgba(0,0,0,.06) }
+  .toast .t.err{ background:#fdecea; border-color:#f4b1ab; color:#602524 }
+    footer{ text-align:center; color:#7c8b96; font-size:12px; padding:20px }
+    @media (max-width: 900px){ .shell{ grid-template-columns: 1fr } .hero{ min-height: 40vh } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div>
+  <div class="logo"><img src="/images/streamsofjoy.png" alt="Streams of Joy logo" /><span class="brand">Streams of Joy</span></div>
+        <h1>SuperAdmin Onboarding</h1>
+        <p>This secure portal is for the foundational administrator who will oversee approvals and church‑wide setup.</p>
+      </div>
+      <div class="art">
+        <div class="blob">
+          <div class="blobLayer"></div>
+          <div class="blobOverlay"></div>
+          <div class="shield">
+            <!-- Simple shield-check inline SVG for a professional security/approval feel -->
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M12 3l7 3v5c0 5-3.5 9.5-7 10-3.5-.5-7-5-7-10V6l7-3z" fill="#ffffff" fill-opacity="0.92"/>
+              <path d="M9.2 12.3l2.1 2.1 4.5-4.5" stroke="#0E5F87" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+      <footer>&copy; <span id="year"></span> Streams of Joy</footer>
+    </section>
+    <section class="pane">
+      <form class="card" id="regForm">
+  <h2>Create your SuperAdmin account</h2>
+  <div class="sub">Provide your details below. If you have a valid access code, you’ll be created as an approved multi‑church SuperAdmin and assigned to the church you choose. Without an access code, your request is submitted for leadership approval and you’ll have single‑church control.</div>
+        <ul style="margin:8px 0 6px 18px; color:#56707d; font-size:13px; line-height:1.5">
+          <li>Official name and contact (email + phone)</li>
+          <li>Secure password (min 6 characters)</li>
+          <li>Access code (for multi SuperAdmin setup)</li>
+        </ul>
+
+        <div class="row">
+          <div>
+            <label>First Name<input name="firstName" required /></label>
+          </div>
+          <div>
+            <label>Surname<input name="surname" required /></label>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Middle Name<input name="middleName" /></label>
+          </div>
+          <div>
+            <label>Title
+              <select name="title" id="titleSelect" required>
+                <option value="">Select title…</option>
+                <option>Pastor</option>
+                <option>Rev.</option>
+                <option>Dr.</option>
+                <option>Prof.</option>
+                <option>Mr.</option>
+                <option>Mrs.</option>
+                <option>Miss</option>
+                <option>Bro.</option>
+                <option>Sis.</option>
+                <option>Deacon</option>
+                <option>Deaconess</option>
+                <option>Elder</option>
+                <option value="Other">Other…</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <label>Phone<input name="phone" required placeholder="+234..." /></label>
+        <div class="inline">
+          <label style="flex:2">Email
+            <input type="email" name="email" id="email" required />
+          </label>
+          <div style="flex:1">
+            <button type="button" id="sendOtpBtn" style="margin-top:0">Send code</button>
+          </div>
+        </div>
+        <div id="emailStatus" class="note"></div>
+
+        <label>Street Address
+          <input name="address" id="address" placeholder="House number and street" />
+        </label>
+        <label>Assign Default Church
+          <select id="churchId" name="churchId">
+            <option value="">Select a church (optional)</option>
+          </select>
+          <div id="churchStatus" class="note"></div>
+        </label>
+        <div>
+          <label>Add Profile Photo</label>
+          <div class="avatarRow">
+            <div class="avatarCircle" id="avatarCircle" title="Click to upload">
+              <svg class="camera" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9 4l1.5 2H15a3 3 0 013 3v7a3 3 0 01-3 3H9a3 3 0 01-3-3V9a3 3 0 013-3h.5L9 4z" stroke="#2CA6FF" stroke-width="1.5"/><circle cx="12" cy="12" r="3.5" stroke="#2CA6FF" stroke-width="1.5"/></svg>
+              <img id="avatarPreview" alt="" style="display:none" />
+            </div>
+            <input type="file" id="avatarInput" name="avatar" accept="image/*" style="display:none" />
+            <div class="note">Optional. Square images work best.</div>
+          </div>
+        </div>
+        <div class="row-3">
+          <label>City/Town
+            <input name="city" id="city" placeholder="e.g. Umuahia" disabled />
+          </label>
+          <label>State
+            <input name="state" id="state" list="ng-states" placeholder="Select or type" disabled />
+            <datalist id="ng-states"></datalist>
+          </label>
+          <label>Country
+            <input name="country" id="country" list="countries" placeholder="Select or type" />
+            <datalist id="countries"></datalist>
+          </label>
+        </div>
+        <label>Password<input type="password" name="password" required minlength="6" /></label>
+  <label>Bootstrap Access Code<input name="bootstrapCode" placeholder="Enter access code (provided privately)" /></label>
+
+  <button type="submit" id="submitBtn">Register</button>
+  <div class="note">Note: The access code is required only when creating the first SuperAdmin. If a multi SuperAdmin exists, you will be placed in the approval queue.</div>
+        <div id="msg"></div>
+      </form>
+    </section>
+  </div>
+
+  <!-- OTP Modal -->
+  <div class="modal-overlay" id="otpModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="otpTitle">
+      <div class="close-x" id="otpClose">✕</div>
+      <h3 id="otpTitle">Check your email</h3>
+      <p>We sent a 6‑digit verification code to <b id="otpEmailView"></b>. Enter it below to verify your email.</p>
+      <div class="row">
+        <input type="text" id="otpInput" inputmode="numeric" pattern="[0-9]{6}" placeholder="6-digit code" />
+        <button type="button" id="verifyOtpBtn" style="margin-top:0; min-width:110px">Verify</button>
+      </div>
+      <div class="inline" style="margin-top:8px">
+        <button type="button" id="resendBtn">Resend code</button>
+        <div class="note" id="resendNote"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+    const form = document.getElementById('regForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const msg = document.getElementById('msg');
+  const churchSelect = document.getElementById('churchId');
+    // Email verification flag (must be defined early to avoid ReferenceError before init)
+    let emailVerified = false;
+    // Toast helper (make available early for church loading feedback)
+    const toast = document.getElementById('toast');
+    function showToast(text, isError=false){
+      if (!toast) return;
+      const el = document.createElement('div');
+      el.className = 't'+(isError?' err':'');
+      el.textContent = text;
+      toast.appendChild(el);
+      setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .4s'; setTimeout(()=> el.remove(), 450); }, 2600);
+    }
+    const ngStates = [
+      'Abia','Adamawa','Akwa Ibom','Anambra','Bauchi','Bayelsa','Benue','Borno','Cross River','Delta','Ebonyi','Edo','Ekiti','Enugu','Gombe','Imo','Jigawa','Kaduna','Kano','Katsina','Kebbi','Kogi','Kwara','Lagos','Nasarawa','Niger','Ogun','Ondo','Osun','Oyo','Plateau','Rivers','Sokoto','Taraba','Yobe','Zamfara','FCT Abuja'
+    ];
+    const statesDL = document.getElementById('ng-states');
+    if (statesDL) {
+      ngStates.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        statesDL.appendChild(opt);
+      });
+    }
+
+    // Countries datalist (editable). Keep a concise set; free text allowed.
+    const countries = [
+      // Africa (expanded)
+      'Nigeria','Ghana','Kenya','South Africa','Egypt','Ethiopia','Morocco','Algeria','Tunisia','Uganda','Tanzania','Rwanda','Cameroon','Ivory Coast','Senegal','Somalia','Sudan','Zimbabwe','Zambia','Botswana','Liberia','Sierra Leone','Benin','Togo','Burkina Faso','Mali','Niger','Chad','Gabon','Equatorial Guinea','Eritrea','Djibouti','Mauritius','Seychelles','Gambia','Mozambique','Angola','Namibia','Lesotho','Eswatini',
+      // Americas
+      'United States','Canada','Mexico','Brazil','Argentina','Chile','Colombia','Peru','Panama','Costa Rica','Ecuador','Uruguay','Paraguay','Bolivia','Venezuela',
+      // Europe
+      'United Kingdom','Ireland','Germany','France','Italy','Spain','Portugal','Netherlands','Belgium','Switzerland','Austria','Sweden','Norway','Denmark','Finland','Poland','Czech Republic','Slovakia','Hungary','Romania','Bulgaria','Greece','Ukraine','Russia','Estonia','Latvia','Lithuania','Iceland',
+      // Middle East & Asia
+      'United Arab Emirates','Saudi Arabia','Qatar','Bahrain','Kuwait','Oman','Turkey','Israel','Lebanon','Jordan','China','India','Japan','South Korea','Singapore','Malaysia','Indonesia','Philippines','Vietnam','Thailand','Sri Lanka','Bangladesh','Pakistan','Nepal',
+      // Oceania
+      'Australia','New Zealand'
+    ];
+    const countriesDL = document.getElementById('countries');
+    if (countriesDL) {
+      countries.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        countriesDL.appendChild(opt);
+      });
+    }
+
+    // Title select: show free text when Other selected
+    const titleSelect = document.getElementById('titleSelect');
+    if (titleSelect) {
+      titleSelect.addEventListener('change', (e) => {
+        if (e.target.value === 'Other') {
+          const input = document.createElement('input');
+          input.name = 'title';
+          input.placeholder = 'Enter title';
+          input.required = true;
+          const label = titleSelect.parentElement;
+          label.replaceChild(input, titleSelect);
+          // re-evaluate submit lock after DOM swap
+          if (typeof updateSubmitLock === 'function') {
+            input.addEventListener('input', updateSubmitLock);
+            input.addEventListener('change', updateSubmitLock);
+            setTimeout(() => updateSubmitLock(), 0);
+          }
+        }
+      });
+    }
+
+    // Enable/disable location inputs based on selection
+    const countryEl = document.getElementById('country');
+    const stateEl = document.getElementById('state');
+    const cityEl = document.getElementById('city');
+    function updateLocLocks(){
+      const hasCountry = (countryEl.value||'').trim().length>0;
+      stateEl.disabled = !hasCountry;
+      if (!hasCountry) { stateEl.value=''; cityEl.value=''; }
+      const hasState = hasCountry && (stateEl.value||'').trim().length>0;
+      cityEl.disabled = !hasState;
+      if (!hasState) { cityEl.value=''; }
+      if (typeof updateSubmitLock === 'function') updateSubmitLock();
+    }
+    countryEl.addEventListener('input', updateLocLocks);
+    stateEl.addEventListener('input', updateLocLocks);
+    // Initialize locks
+    updateLocLocks();
+
+    // Populate churches list from public endpoint (compat-friendly, with status + retry)
+    (function loadChurches(attempt){
+      attempt = attempt || 1;
+      var statusEl = document.getElementById('churchStatus');
+      if (statusEl) statusEl.textContent = 'Loading churches…';
+      try {
+        if (churchSelect) {
+          var loading = document.createElement('option');
+          loading.value=''; loading.textContent='Loading churches…';
+          churchSelect.appendChild(loading);
+        }
+        var churchesUrl = (window.location && window.location.origin ? window.location.origin : '') + '/api/churches/public';
+        fetch(churchesUrl, { cache: 'no-store' })
+          .then(function(r){
+            if (!r.ok) throw new Error('HTTP '+r.status);
+            return r.json();
+          })
+          .then(function(j){
+            var list = [];
+            if (j && Array.isArray(j.churches)) list = j.churches;
+            else if (j && j.data && Array.isArray(j.data.churches)) list = j.data.churches;
+            else if (j && Array.isArray(j.data)) list = j.data;
+            console.log('[register-superadmin] churches/public count:', Array.isArray(list) ? list.length : 'not-array');
+            if (statusEl) statusEl.textContent = Array.isArray(list) ? ('Found '+list.length+' church'+(list.length>1?'es':'')) : 'Unexpected response';
+            if (churchSelect) {
+              if (churchSelect.replaceChildren) churchSelect.replaceChildren(); else churchSelect.innerHTML = '';
+              var placeholder = document.createElement('option');
+              placeholder.value = '';
+              placeholder.textContent = 'Select a church (optional)';
+              placeholder.selected = true;
+              churchSelect.appendChild(placeholder);
+              if (Array.isArray(list) && list.length > 0) {
+                list.forEach(function(ch){
+                  var opt = document.createElement('option');
+                  var name = ch && (ch.name || ch.slug) || 'Unnamed church';
+                  var id = ch && (ch._id || ch.id || ch.slug) || '';
+                  opt.textContent = name;
+                  opt.value = String(id || '');
+                  if (!opt.value) console.warn('[register-superadmin] church missing id/slug:', ch);
+                  churchSelect.appendChild(opt);
+                });
+                showToast('Loaded '+list.length+' church'+(list.length>1?'es':''));
+              } else {
+                var none = document.createElement('option');
+                none.value = '';
+                none.textContent = 'No churches found';
+                churchSelect.appendChild(none);
+              }
+            }
+          })
+          .catch(function(err){
+            console.error('[register-superadmin] churches/public load error', err);
+            if (statusEl) statusEl.textContent = 'Failed to load churches'+(attempt<2?' – retrying…':'');
+            showToast('Failed to load churches', true);
+            if (attempt < 2) setTimeout(function(){ loadChurches(attempt+1); }, 800);
+          });
+      } catch (e) {
+        console.error('[register-superadmin] loadChurches exception', e);
+        if (statusEl) statusEl.textContent = 'Failed to load churches (script error)';
+        showToast('Failed to load churches', true);
+      }
+    })(1);
+
+  // Email OTP flow
+    const emailEl = document.getElementById('email');
+    const sendOtpBtn = document.getElementById('sendOtpBtn');
+    const emailStatus = document.getElementById('emailStatus');
+    // Modal
+    const otpModal = document.getElementById('otpModal');
+    const otpClose = document.getElementById('otpClose');
+    const otpEmailView = document.getElementById('otpEmailView');
+    const otpInput = document.getElementById('otpInput');
+    const verifyOtpBtn = document.getElementById('verifyOtpBtn');
+    const resendBtn = document.getElementById('resendBtn');
+    const resendNote = document.getElementById('resendNote');
+
+    function openOtpModal(email){
+      otpEmailView.textContent = email;
+      resendNote.textContent = '';
+      otpInput.value='';
+      otpModal.style.display='flex';
+      setTimeout(()=> otpInput.focus(), 20);
+    }
+    function closeOtpModal(){ otpModal.style.display='none'; }
+    otpClose.addEventListener('click', closeOtpModal);
+    otpModal.addEventListener('click', (e)=>{ if(e.target===otpModal) closeOtpModal(); });
+
+    function setEmailStatus(html, ok){
+      emailStatus.innerHTML = html;
+      emailStatus.className = ok ? 'badge' : 'note';
+    }
+
+    if (sendOtpBtn) {
+      sendOtpBtn.addEventListener('click', async () => {
+        emailVerified = false;
+        setEmailStatus('', false);
+        const email = (emailEl.value||'').trim();
+        if (!email) { setEmailStatus('Enter a valid email first.', false); return; }
+        sendOtpBtn.disabled = true; sendOtpBtn.textContent = 'Sending…';
+        try {
+          const r = await fetch('/api/send-mail-otp', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email }) });
+          const j = await r.json();
+          // If server reports this email is already verified, mark verified and skip OTP modal
+          if (j && j.ok && (j.status === 'verified' || /already verified/i.test(j.message||''))) {
+            emailVerified = true;
+            setEmailStatus('Email verified', true);
+            showToast('Email already verified');
+            // Lock the send button to prevent re-sends for verified email
+            sendOtpBtn.disabled = true; sendOtpBtn.textContent = 'Verified';
+            if (typeof updateSubmitLock === 'function') updateSubmitLock();
+            return;
+          }
+          if (!j.ok && j.status !== 'sentDev') throw new Error(j.message||'Could not send code');
+          setEmailStatus('Code sent. Check your inbox.', false);
+          showToast('OTP sent to '+email);
+          openOtpModal(email);
+          // Handle throttling info if present
+          if (j.cooldownRemaining) {
+            let remain = j.cooldownRemaining;
+            resendBtn.disabled = true;
+            resendNote.textContent = `You can resend in ${remain}s`;
+            const iv = setInterval(()=>{
+              remain -= 1;
+              resendNote.textContent = `You can resend in ${Math.max(remain,0)}s`;
+              if (remain<=0){ clearInterval(iv); resendBtn.disabled=false; resendNote.textContent=''; }
+            },1000);
+          } else {
+            resendBtn.disabled = false;
+          }
+        } catch(err){
+          setEmailStatus(err.message||'Failed to send code', false);
+          showToast(err.message||'Failed to send code', true);
+        } finally {
+          sendOtpBtn.disabled = false; sendOtpBtn.textContent = 'Send code';
+          if (typeof updateSubmitLock === 'function') updateSubmitLock();
+        }
+      });
+    }
+
+    if (verifyOtpBtn) {
+      verifyOtpBtn.addEventListener('click', async () => {
+        const email = (emailEl.value||'').trim();
+        const otp = (otpInput.value||'').trim();
+        if (!email || !otp) { setEmailStatus('Enter the 6‑digit code.', false); showToast('Enter the 6‑digit code', true); return; }
+        verifyOtpBtn.disabled = true; verifyOtpBtn.textContent = 'Verifying…';
+        try {
+          const r = await fetch('/api/verify-mail-otp', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, otp }) });
+          const j = await r.json();
+          if (!j.ok) throw new Error(j.message||'Invalid code');
+          emailVerified = true;
+          setEmailStatus('Email verified', true);
+          showToast('Email verified');
+          closeOtpModal();
+          // Disable further sends once verified
+          if (sendOtpBtn) { sendOtpBtn.disabled = true; sendOtpBtn.textContent = 'Verified'; }
+        } catch(err){
+          setEmailStatus(err.message||'Verification failed', false);
+          showToast(err.message||'Verification failed', true);
+        } finally {
+          verifyOtpBtn.disabled = false; verifyOtpBtn.textContent = 'Verify';
+          if (typeof updateSubmitLock === 'function') updateSubmitLock();
+        }
+      });
+    }
+
+    // Resend handler
+    if (resendBtn) {
+      resendBtn.addEventListener('click', async () => {
+        const email = (emailEl.value||'').trim();
+        if (!email) return;
+        resendBtn.disabled = true;
+        try {
+          const r = await fetch('/api/send-mail-otp', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email }) });
+          const j = await r.json();
+          if (!j.ok && j.status !== 'sentDev') throw new Error(j.message||'Could not resend');
+          showToast('OTP resent');
+          // Apply throttling countdown if provided
+          let remain = j.cooldownRemaining || 45;
+          resendNote.textContent = `You can resend in ${remain}s`;
+          const iv = setInterval(()=>{
+            remain -= 1;
+            resendNote.textContent = `You can resend in ${Math.max(remain,0)}s`;
+            if (remain<=0){ clearInterval(iv); resendBtn.disabled=false; resendNote.textContent=''; }
+          },1000);
+        } catch(err){
+          showToast(err.message||'Failed to resend code', true);
+          resendBtn.disabled = false;
+        }
+      });
+    }
+    // If email changes post-verification, revoke verification and relock submit
+    emailEl.addEventListener('input', () => {
+      if (emailVerified) {
+        emailVerified = false;
+        setEmailStatus('', false);
+      }
+      // Re-enable send if user edits email
+      if (sendOtpBtn) { sendOtpBtn.disabled = false; sendOtpBtn.textContent = 'Send code'; }
+      if (typeof updateSubmitLock === 'function') updateSubmitLock();
+    });
+
+    // Submit button locking until email verified and fields valid
+    function updateSubmitLock(){
+      const formValid = form.checkValidity();
+      const locOk = (stateEl.disabled || (stateEl.value||'').trim().length>0) && (cityEl.disabled || (cityEl.value||'').trim().length>0);
+      submitBtn.disabled = !(emailVerified && formValid && locOk);
+    }
+    // Initialize: locked
+    submitBtn.disabled = true;
+    Array.from(form.querySelectorAll('input,select')).forEach(el => {
+      el.addEventListener('input', updateSubmitLock);
+      el.addEventListener('change', updateSubmitLock);
+    });
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      msg.innerHTML='';
+      if (submitBtn.disabled) return;
+      if (!emailVerified) { msg.innerHTML = '<div class="error">Please verify your email before continuing.</div>'; return; }
+      submitBtn.disabled = true;
+      const original = submitBtn.textContent;
+      submitBtn.textContent = 'Submitting…';
+      const fd = new FormData(form);
+      const data = Object.fromEntries(fd.entries());
+      // Combine address fields into a single address string expected by backend profile.address
+      const addr = [data.address, data.city, data.state, data.country].filter(Boolean).join(', ');
+      data.address = addr;
+      try {
+        // Build multipart body to include optional avatar
+        const body = new FormData();
+        Object.keys(data).forEach(k=>{ if(k!=='avatar') body.append(k, data[k]); });
+        const fileEl = document.getElementById('avatarInput');
+        if (fileEl && fileEl.files && fileEl.files[0]) { body.append('avatar', fileEl.files[0]); }
+        const res = await fetch('/api/register-superadmin',{ method:'POST', body });
+        const j = await res.json();
+        if(!j.ok) throw new Error(j.message||'Failed');
+        if(j.first){
+          msg.innerHTML = '<div class="success">Success! Multi SuperAdmin created. You can now log in via the app.</div>';
+        } else if(j.pending){
+          msg.innerHTML = '<div class="success">Request submitted. Await approval by an existing SuperAdmin.</div>';
+        } else {
+          msg.innerHTML = '<div class="success">Registered.</div>';
+        }
+        form.reset();
+        setEmailStatus('', false);
+        emailVerified = false;
+        updateLocLocks();
+        updateSubmitLock();
+  // Reset avatar preview and restore camera icon
+  const prev = document.getElementById('avatarPreview'); if (prev) prev.style.display='none';
+  const camBack = document.querySelector('#avatarCircle .camera'); if (camBack) camBack.style.display='';
+      } catch(err){
+        msg.innerHTML = '<div class="error">'+(err.message||'Registration failed')+'</div>';
+      } finally { submitBtn.disabled = false; submitBtn.textContent = original; }
+    });
+
+    // Avatar picker logic
+    const avatarCircle = document.getElementById('avatarCircle');
+    const avatarInput = document.getElementById('avatarInput');
+    const avatarPreview = document.getElementById('avatarPreview');
+    if (avatarCircle && avatarInput) {
+      avatarCircle.addEventListener('click', ()=> avatarInput.click());
+      avatarInput.addEventListener('change', ()=>{
+        const file = avatarInput.files && avatarInput.files[0];
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        avatarPreview.src = url;
+        avatarPreview.style.display = 'block';
+        // Hide camera icon when preview is visible
+        const cam = avatarCircle.querySelector('.camera');
+        if (cam) cam.style.display = 'none';
+        showToast('Photo selected: '+(file.name||'image'));
+      });
+    }
+  </script>
+</body>
+</html>
