@@ -226,6 +226,24 @@ app.post('/api/upload/profile', upload.single('file'), async (req, res) => {
   }
 });
 
+// Upload endpoint for message attachments (images/files)
+app.post('/api/upload/message', upload.single('file'), async (req,res)=>{
+  if (!req.file) return res.status(400).json({ ok:false, error:'file required' });
+  try {
+    if (!cloudinary.config().cloud_name) {
+      return res.status(500).json({ ok:false, error:'Cloudinary not configured on server' });
+    }
+    const result = await uploadBufferToCloudinary(req.file.buffer, {
+      resource_type: 'auto',
+      folder: 'soj_messages'
+    });
+    return res.json({ ok:true, url: result.secure_url, bytes: result.bytes, format: result.format, resource_type: result.resource_type });
+  } catch (err) {
+    console.error('[cloudinary] message upload error', err);
+    return res.status(500).json({ ok:false, error:'Upload failed', details: err?.message });
+  }
+});
+
 // Start server with socket.io
 const http = require('http').createServer(app);
 const io = require('socket.io')(http, { cors: { origin: '*' } });
