@@ -4,7 +4,9 @@ const AttachmentSchema = new mongoose.Schema({
   url: { type: String, required: true },
   name: { type: String, default: '' },
   type: { type: String, enum: ['image','file','other'], default: 'other' },
-  size: { type: Number, default: 0 }
+  size: { type: Number, default: 0 },
+  publicId: { type: String, default: '' },
+  resourceType: { type: String, enum: ['image','raw','video','auto',''], default: '' }
 }, { _id:false });
 
 const MessageSchema = new mongoose.Schema({
@@ -21,6 +23,14 @@ const MessageSchema = new mongoose.Schema({
   readBy: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [] },
   archivedFor: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [] },
   deletedFor: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [] },
+  // emoji reactions: array of { emoji, users[] }
+  reactions: {
+    type: [new mongoose.Schema({
+      emoji: { type: String, required: true },
+      users: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [] }
+    }, { _id: false })],
+    default: []
+  },
   createdAt: { type: Date, default: Date.now }
 });
 

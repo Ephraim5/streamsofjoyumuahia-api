@@ -1,6 +1,7 @@
 const Message = require('../models/Message');
 const User = require('../models/User');
 const Unit = require('../models/Unit');
+const cloudinary = require('cloudinary').v2;
 
 // POST /api/messages  { toUserId?, toUnitId?, subject?, text?, attachments? }
 async function sendMessage(req, res) {
@@ -167,4 +168,75 @@ async function deleteConversation(req,res){
   }
 }
 
-module.exports = { sendMessage, listConversations, fetchConversation, markRead, deleteConversation };
+// DELETE /api/messages/:id  -> deletes a single message authored by the requester; also removes attachments from cloudinary when possible
+async function deleteMessage(req, res){
+  try{
+    const me = String(req.user._id);
+    const { id } = req.params;
+    const msg = await Message.findById(id);
+    if(!msg) return res.status(404).json({ ok:false, message:'Message not found' });
+    if(String(msg.from) !== me){
+      // allow admins of same church to delete group messages to that unit (optional). For now restrict to author only
+      return res.status(403).json({ ok:false, message:'Only the author can delete this message' });
+    }
+    // best-effort cleanup of attachments
+    if(Array.isArray(msg.attachments)){
+      for(const a of msg.attachments){
+        if(a.publicId){
+          try{ await cloudinary.uploader.destroy(a.publicId, { resource_type: (a.resourceType||'image') }); }catch(e){ /* ignore */ }
+        }
+      }
+    }
+    await msg.deleteOne();
+    return res.json({ ok:true });
+  }catch(e){
+    return res.status(500).json({ ok:false, message:'Failed to delete message', error:e.message });
+  }
+}
+
+// POST /api/messages/:id/reactions { emoji }
+async function addReaction(req, res){
+  try{
+    const me = req.user._id;
+    const { id } = req.params;
+    const { emoji } = req.body || {};
+    if(!emoji) return res.status(400).json({ ok:false, message:'emoji required' });
+    const msg = await Message.findById(id);
+    if(!msg) return res.status(404).json({ ok:false, message:'Message not found' });
+    let found = msg.reactions.find(r=>r.emoji===emoji);
+    if(!found){
+      msg.reactions.push({ emoji, users: [me] });
+    }else{
+      if(!found.users.map(String).includes(String(me))) found.users.push(me);
+    }
+    await msg.save();
+    return res.json({ ok:true, reactions: msg.reactions });
+  }catch(e){
+    return res.status(500).json({ ok:false, message:'Failed to add reaction', error:e.message });
+  }
+}
+
+// DELETE /api/messages/:id/reactions { emoji }
+async function removeReaction(req, res){
+  try{
+    const me = req.user._id;
+    const { id } = req.params;
+    const { emoji } = req.body || {};
+    if(!emoji) return res.status(400).json({ ok:false, message:'emoji required' });
+    const msg = await Message.findById(id);
+    if(!msg) return res.status(404).json({ ok:false, message:'Message not found' });
+    const found = msg.reactions.find(r=>r.emoji===emoji);
+    if(found){
+      found.users = found.users.filter(u => String(u) !== String(me));
+      if(found.users.length===0){
+        msg.reactions = msg.reactions.filter(r=>r.emoji!==emoji);
+      }
+      await msg.save();
+    }
+    return res.json({ ok:true, reactions: msg.reactions });
+  }catch(e){
+    return res.status(500).json({ ok:false, message:'Failed to remove reaction', error:e.message });
+  }
+}
+
+module.exports = { sendMessage, listConversations, fetchConversation, markRead, deleteConversation, deleteMessage, addReaction, removeReaction };

@@ -237,7 +237,7 @@ app.post('/api/upload/message', upload.single('file'), async (req,res)=>{
       resource_type: 'auto',
       folder: 'soj_messages'
     });
-    return res.json({ ok:true, url: result.secure_url, bytes: result.bytes, format: result.format, resource_type: result.resource_type });
+    return res.json({ ok:true, url: result.secure_url, bytes: result.bytes, format: result.format, resource_type: result.resource_type, public_id: result.public_id });
   } catch (err) {
     console.error('[cloudinary] message upload error', err);
     return res.status(500).json({ ok:false, error:'Upload failed', details: err?.message });
