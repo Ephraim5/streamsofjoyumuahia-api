@@ -53,6 +53,11 @@ module.exports.approveUser = async (req, res) => {
       target.superAdminPending = false;
     }
     await target.save();
+    // Notify the approved user
+    try {
+      const { sendPushToUsers } = require('../utils/push');
+      await sendPushToUsers([target._id], { title: 'Account Approved', body: 'You can now access all features.', data: { type:'approval' } });
+    } catch {}
     return res.json({ ok:true, userId: target._id });
   } catch (e) {
     console.error('approveUser error', e);

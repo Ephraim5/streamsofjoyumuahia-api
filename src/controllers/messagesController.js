@@ -2,6 +2,7 @@ const Message = require('../models/Message');
 const User = require('../models/User');
 const Unit = require('../models/Unit');
 const cloudinary = require('cloudinary').v2;
+const { sendPushToUsers } = require('../utils/push');
 
 // POST /api/messages  { toUserId?, toUnitId?, subject?, text?, attachments? }
 async function sendMessage(req, res) {
@@ -27,7 +28,7 @@ async function sendMessage(req, res) {
       recipients = [ ...new Set([ ...unit.leaders.map(x=>String(x)), ...unit.members.map(x=>String(x)) ]) ];
     }
 
-    const msg = await Message.create(payload);
+  const msg = await Message.create(payload);
 
     // Deliver in realtime to all recipients connected
     const io = req.app.get('io');
@@ -41,6 +42,15 @@ async function sendMessage(req, res) {
         msg.delivered = true; await msg.save();
       }
     }
+    // Push notification to recipients (direct only for now)
+    try {
+      if (recipients && recipients.length) {
+        const fromUser = await User.findById(from).select('firstName surname');
+        const title = fromUser ? `${fromUser.firstName} ${fromUser.surname}`.trim() : 'New message';
+        const preview = (text||'').slice(0, 80);
+        await sendPushToUsers(recipients, { title, body: preview || 'Sent you a message', data: { type:'message', messageId: String(msg._id) } });
+      }
+    } catch {}
     return res.json({ ok:true, message: msg });
   } catch (e) {
     return res.status(500).json({ ok:false, message:'Failed to send message', error:e.message });

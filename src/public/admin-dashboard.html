@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SOJ Admin Console</title>
+  <link rel="icon" href="/images/streamsofjoy.png" type="image/png" />
+  <meta name="theme-color" content="#349DC5" />
+  <style>
+    :root{ --primary:#349DC5; --ink:#0E2433; --muted:#607585; --bg:#f5f7fb; --card:#fff; --danger:#D64541; --success:#26A65B; }
+    *{ box-sizing:border-box }
+    body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); color:var(--ink) }
+    header{ position:sticky; top:0; z-index:20; background:linear-gradient(180deg, #3aabd6, #349DC5); color:#fff; box-shadow:0 6px 18px rgba(13,38,76,.18) }
+    .top{ display:flex; align-items:center; justify-content:space-between; padding:14px 18px }
+    .brand{ display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.2px }
+    .brand img{ height:28px }
+    .user{ display:flex; align-items:center; gap:10px }
+    .avatar{ width:32px; height:32px; border-radius:50%; background:#e1eef6; overflow:hidden }
+    .avatar img{ width:100%; height:100%; object-fit:cover }
+    .wrap{ max-width:1200px; margin:0 auto; padding:18px }
+    .tabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px }
+    .tab{ padding:8px 12px; border-radius:10px; background:#e8f4fb; color:#0c3042; cursor:pointer; border:1px solid #bfe2f2 }
+    .tab.active{ background:#fff; border-color:#89cde4; box-shadow:0 4px 16px rgba(13,38,76,.08) }
+    .panel{ background:#fff; border-radius:14px; padding:16px; box-shadow:0 8px 24px rgba(13,38,76,.08) }
+    .grid{ display:grid; grid-template-columns: repeat(12,1fr); gap:14px }
+    .card{ background:#fff; border:1px solid #e6e9ef; border-radius:12px; padding:14px }
+    .kpi{ display:flex; align-items:center; justify-content:space-between }
+    .muted{ color:var(--muted); font-size:12px }
+    .btn{ padding:10px 12px; border-radius:10px; border:1px solid #bfe2f2; background:#e8f4fb; color:#0c3042; cursor:pointer }
+    .btn.primary{ background:var(--primary); color:#fff; border-color:transparent }
+    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+    .input{ padding:10px 12px; border:1px solid #d4dce1; border-radius:10px; min-width:220px }
+    .login{ min-height:100vh; display:grid; place-items:center; padding:24px }
+    .login .panel{ width:100%; max-width:420px }
+    .note{ font-size:12px; color:#5d7281 }
+  </style>
+</head>
+<body>
+  <div id="login" class="login">
+    <div class="panel">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px"><img src="/images/streamsofjoy.png" alt="logo" style="height:34px"/><b>Streams of Joy</b></div>
+      <h2 style="margin:6px 0 4px">Admin Console</h2>
+      <div class="note">Use your assigned username. Default shared password applies on first login; change it after logging in.</div>
+      <div style="margin-top:10px">
+        <label>Username</label>
+        <input id="user" class="input" placeholder="e.g. admin.moses" />
+      </div>
+      <div style="margin-top:10px">
+        <label>Password</label>
+        <input id="pass" type="password" class="input" placeholder="••••••••" />
+      </div>
+      <div style="margin-top:12px" class="row">
+        <button class="btn primary" id="loginBtn">Login</button>
+        <span id="loginMsg" class="note"></span>
+      </div>
+    </div>
+  </div>
+
+  <header id="appHeader" style="display:none">
+    <div class="top wrap">
+      <div class="brand"><img src="/images/streamsofjoy.png" alt="logo"/> <span>SOJ Admin Console</span></div>
+      <div class="user">
+        <div class="avatar"><img id="profImg" alt=""/></div>
+        <div>
+          <div id="profName" style="font-weight:700">Administrator</div>
+          <div class="muted" id="profRole">Multi SuperAdmin</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main id="app" style="display:none">
+    <div class="wrap">
+      <div class="tabs">
+        <div class="tab active" data-tab="overview">Overview</div>
+        <div class="tab" data-tab="reports">Reports</div>
+        <div class="tab" data-tab="push">Push & Email</div>
+        <div class="tab" data-tab="logs">Error Logs</div>
+      </div>
+      <section class="panel" id="panel-overview">
+        <div class="grid">
+          <div class="card" style="grid-column: span 4">
+            <div class="kpi"><div><b>Total Workers</b><div class="muted">All roles</div></div><div id="kpiWorkers" style="font-size:24px; font-weight:800">—</div></div>
+          </div>
+          <div class="card" style="grid-column: span 4">
+            <div class="kpi"><div><b>Total Units</b><div class="muted">All churches</div></div><div id="kpiUnits" style="font-size:24px; font-weight:800">—</div></div>
+          </div>
+          <div class="card" style="grid-column: span 4">
+            <div class="kpi"><div><b>Attendance Records</b><div class="muted">Cumulative</div></div><div id="kpiAttendance" style="font-size:24px; font-weight:800">—</div></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <b>Recent Activity</b>
+          <div class="muted">Charts coming soon. This prototype displays high-level KPIs using existing endpoints.</div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-reports" style="display:none">
+        <div class="row" style="justify-content:space-between">
+          <b>Reports Inbox</b>
+          <button class="btn">Refresh</button>
+        </div>
+        <div class="muted" style="margin-top:10px">Wire this to your reports collections. Show filters, search, and details.</div>
+      </section>
+
+      <section class="panel" id="panel-push" style="display:none">
+        <b>Broadcast Notification</b>
+        <div class="row" style="margin-top:10px">
+          <input id="pushTitle" class="input" placeholder="Title" />
+          <input id="pushBody" class="input" placeholder="Message" />
+          <button id="sendPush" class="btn primary">Send Push</button>
+        </div>
+        <div class="muted" id="pushMsg" style="margin-top:8px"></div>
+        <hr style="margin:16px 0"/>
+        <b>Send Email</b>
+        <div class="row" style="margin-top:10px">
+          <input class="input" placeholder="Subject" />
+          <input class="input" placeholder="Recipient or group" />
+          <button class="btn">Compose</button>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-logs" style="display:none">
+        <b>Error Logs</b>
+        <div class="muted" style="margin-top:10px">Display server/client errors with filters and grouping. Hook up to a logs endpoint or external store.</div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    // Simple demo auth: default shared password, unique usernames. Replace with real backend auth.
+    const DEFAULT_PASS = 'Soj@2025';
+    const loginBtn = document.getElementById('loginBtn');
+    const loginMsg = document.getElementById('loginMsg');
+    let sessionPass = '';
+    loginBtn.addEventListener('click', () => {
+      const u = (document.getElementById('user').value||'').trim();
+      const p = (document.getElementById('pass').value||'').trim();
+      if (!u || !p){ loginMsg.textContent = 'Enter username and password'; return; }
+      if (p !== DEFAULT_PASS){ loginMsg.textContent = 'Invalid credentials'; return; }
+      // Save simple session in memory only (prototype)
+      document.getElementById('login').style.display='none';
+      document.getElementById('appHeader').style.display='block';
+      document.getElementById('app').style.display='block';
+      document.getElementById('profName').textContent = u;
+      sessionPass = p;
+      // load KPIs immediately after login
+      loadKpis();
+    });
+
+    // Tabs
+    const tabs = Array.from(document.querySelectorAll('.tab'));
+    const panels = {
+      overview: document.getElementById('panel-overview'),
+      reports: document.getElementById('panel-reports'),
+      push: document.getElementById('panel-push'),
+      logs: document.getElementById('panel-logs'),
+    };
+    tabs.forEach(t => t.addEventListener('click', () => {
+      tabs.forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      const key = t.getAttribute('data-tab');
+      Object.keys(panels).forEach(k => panels[k].style.display = (k===key?'block':'none'));
+    }));
+
+    // Load KPIs using existing backend endpoint
+    function loadKpis(){
+      if (!sessionPass) return;
+      fetch('/admin-api/summary', { headers: { 'x-admin-password': sessionPass }})
+        .then(r => r.json()).then(j => {
+          document.getElementById('kpiWorkers').textContent = j.totalWorkers ?? '—';
+          document.getElementById('kpiUnits').textContent = j.totalUnits ?? '—';
+          document.getElementById('kpiAttendance').textContent = j.attendanceCount ?? '—';
+        }).catch(()=>{});
+    }
+
+    // Push broadcast (requires valid backend JWT in real use)
+    document.getElementById('sendPush').addEventListener('click', () => {
+      const t = document.getElementById('pushTitle').value.trim();
+      const b = document.getElementById('pushBody').value.trim();
+      const msg = document.getElementById('pushMsg');
+      if (!t || !b){ msg.textContent = 'Enter title and message'; return; }
+      if (!sessionPass){ msg.textContent = 'Please login again.'; return; }
+      fetch('/admin-api/push', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'x-admin-password': sessionPass },
+        body: JSON.stringify({ title: t, body: b, data: { type: 'announcement' } })
+      }).then(r => r.json()).then(j => {
+        msg.textContent = j.ok? 'Sent!' : ('Failed: '+(j.error||'error'));
+      }).catch(e => { msg.textContent = 'Failed: '+(e.message||'error'); });
+    });
+  </script>
+</body>
+</html>

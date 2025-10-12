@@ -37,6 +37,7 @@ const workPlansRoutes = require('./routes/workPlans');
 const churchesRoutes = require('./routes/churches');
 const ministryAdminsRoutes = require('./routes/ministryAdmins');
 const superAdminsRoutes = require('./routes/superAdmins');
+const adminHtmlRoutes = require('./routes/adminHtml');
 // path already required above
 
 const cloudinary = require('cloudinary').v2;
@@ -111,6 +112,11 @@ app.get('/register-superadmin', (req,res)=>{
   res.sendFile(path.join(__dirname, 'public/register-superadmin.html'));
 });
 
+// Public prototype admin dashboard (behind simple client-side login for now)
+app.get('/admin', (req,res)=>{
+  res.sendFile(path.join(__dirname, 'public/admin-dashboard.html'));
+});
+
 
 app.post('/auth/seed-admin', async (req, res) => {
   try {
@@ -170,6 +176,8 @@ app.use('/api/workplans', workPlansRoutes);
 app.use('/api/churches', churchesRoutes);
 app.use('/api/ministry-admins', ministryAdminsRoutes);
 app.use('/api', superAdminsRoutes);
+// Admin HTML API (password-protected with x-admin-password)
+app.use('/admin-api', adminHtmlRoutes);
 
 // Lightweight health endpoint to verify cloudinary configuration (non-sensitive)
 app.get('/api/health/cloudinary', (req, res) => {

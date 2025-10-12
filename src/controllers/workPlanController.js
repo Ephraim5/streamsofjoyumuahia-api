@@ -1,5 +1,7 @@
 const WorkPlan = require('../models/WorkPlan');
 const Unit = require('../models/Unit');
+const User = require('../models/User');
+const { sendPushToUsers } = require('../utils/push');
 
 // Utility to push version history
 function pushHistory(doc, action, userId, meta = {}) {
@@ -181,6 +183,18 @@ exports.submitWorkPlan = async (req, res) => {
     doc.submittedBy = req.user?._id;
     pushHistory(doc, 'submitted', req.user?._id);
     await doc.save();
+    // Notify SuperAdmins of same church (or multi superadmins) to review
+    try {
+      const churchId = req.user?.church || null;
+      const admins = await User.find({
+        roles: { $elemMatch: { role: 'SuperAdmin' } },
+        ...(churchId ? { church: churchId } : {})
+      }).select('_id');
+      const ids = admins.map(a => a._id);
+      if(ids.length){
+        await sendPushToUsers(ids, { title: 'Work Plan Submitted', body: (doc.title||'Untitled') + ' is awaiting review', data: { type:'workplan', id: String(doc._id) } });
+      }
+    } catch {}
     res.json({ ok: true, item: doc });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
@@ -196,6 +210,8 @@ exports.approveWorkPlan = async (req, res) => {
     doc.approvedBy = req.user?._id;
     pushHistory(doc, 'approved', req.user?._id);
     await doc.save();
+  // Notify owner
+  try { await sendPushToUsers([doc.owner], { title: 'Work Plan Approved', body: doc.title || 'Your plan was approved', data: { type:'workplan', id: String(doc._id) } }); } catch {}
     res.json({ ok: true, item: doc });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
@@ -211,6 +227,7 @@ exports.rejectWorkPlan = async (req, res) => {
     doc.rejectionReason = reason || 'No reason provided';
     pushHistory(doc, 'rejected', req.user?._id, { reason });
     await doc.save();
+  try { await sendPushToUsers([doc.owner], { title: 'Work Plan Rejected', body: (reason||'Please review comments'), data: { type:'workplan', id: String(doc._id) } }); } catch {}
     res.json({ ok: true, item: doc });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
