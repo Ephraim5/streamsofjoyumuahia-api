@@ -56,18 +56,33 @@ exports.listWorkPlans = async (req, res) => {
     const filter = {};
     if (status) filter.status = status;
     if (q) filter.title = { $regex: q, $options: 'i' };
-    // Only scope by unit for non-SuperAdmin roles. Include legacy docs (missing unit) owned by the current user
-    // so Unit Leaders still see their historical plans created before unit field was added.
+    // Role-based scoping for non-SuperAdmin roles
     if (req.user && req.user.activeRole !== 'SuperAdmin') {
       const unitId = deriveActiveUnitId(req.user, req);
       if (unitId) {
-        // Instead of strict filter.unit = unitId, widen scope with $or.
-        // Top-level status/q filters (already on filter) will AND with this $or.
+        // UnitLeader (or member tied to a unit): scope to their active unit + include legacy owner-only docs
         filter.$or = [
           { unit: unitId },
-            // legacy: no unit stored but owned by current user
           { unit: { $exists: false }, owner: req.user._id }
         ];
+      } else if (req.user.activeRole === 'MinistryAdmin') {
+        // MinistryAdmin: scope to all units under their ministryName within their church
+        const role = (req.user.roles || []).find(r => r.role === 'MinistryAdmin' && (r.ministryName || r.church));
+        const ministryName = role?.ministryName || null;
+        const churchId = (role?.church || req.user.church) || null;
+        if (ministryName && churchId) {
+          const units = await Unit.find({ church: churchId, ministryName }).select('_id');
+          const unitIds = units.map(u => String(u._id));
+          if (unitIds.length) {
+            filter.unit = { $in: unitIds };
+          } else {
+            // No units under this ministry -> return empty result set
+            return res.json({ ok: true, items: [], total: 0, page: Number(page), pages: 0 });
+          }
+        } else {
+          // Lacking ministry context -> deny broad access by returning empty set
+          return res.json({ ok: true, items: [], total: 0, page: Number(page), pages: 0 });
+        }
       }
     }
     const skip = (Number(page) - 1) * Number(limit);
