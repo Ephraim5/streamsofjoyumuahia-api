@@ -10,6 +10,10 @@ const EventSchema = new mongoose.Schema({
   status: { type: String, enum: ['Upcoming','Past'], default: 'Upcoming' },
   reminder: { type: Boolean, default: false },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  // audience scoping
+  church: { type: mongoose.Schema.Types.ObjectId, ref: 'Church' },
+  ministryName: { type: String },
+  visibility: { type: String, enum: ['church','ministry'], default: 'church' },
   createdAt: { type: Date, default: Date.now }
 });
 

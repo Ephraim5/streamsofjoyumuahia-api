@@ -1,7 +1,17 @@
 const Event = require('../models/Event');
 
 async function createEvent(req, res) {
-  const { title, venue, description, date, eventType, reminder, tags, status } = req.body;
+  const { title, venue, description, date, eventType, reminder, tags, status, visibility } = req.body;
+  const actor = req.user;
+  const isSuper = (actor.roles||[]).some(r=>r.role==='SuperAdmin') || actor.activeRole==='SuperAdmin';
+  const isMinAdmin = (actor.roles||[]).some(r=>r.role==='MinistryAdmin') || actor.activeRole==='MinistryAdmin';
+  let church = actor.church || null;
+  let ministryName = null;
+  let vis = (visibility==='ministry'||visibility==='church') ? visibility : (isMinAdmin ? 'ministry' : 'church');
+  if (isMinAdmin) {
+    const r = (actor.roles||[]).find(r=>r.role==='MinistryAdmin');
+    ministryName = r?.ministryName || null;
+  }
   const payload = {
     title,
     venue,
@@ -11,7 +21,10 @@ async function createEvent(req, res) {
     reminder: !!reminder,
     tags: Array.isArray(tags) ? tags : undefined,
     status: status || 'Upcoming',
-    createdBy: req.user._id,
+    createdBy: actor._id,
+    church,
+    ministryName: vis==='ministry' ? ministryName : null,
+    visibility: vis
   };
   const e = await Event.create(payload);
   // Fire-and-forget push notification
@@ -27,7 +40,26 @@ async function createEvent(req, res) {
 }
 
 async function listEvents(req, res) {
-  const events = await Event.find().sort({ date: -1 }).limit(200);
+  const actor = req.user;
+  const isSuper = (actor.roles||[]).some(r=>r.role==='SuperAdmin') || actor.activeRole==='SuperAdmin';
+  const isMinAdmin = (actor.roles||[]).some(r=>r.role==='MinistryAdmin') || actor.activeRole==='MinistryAdmin';
+  const church = actor.church || null;
+  let ministryName = null;
+  if (isMinAdmin) {
+    const r = (actor.roles||[]).find(r=>r.role==='MinistryAdmin');
+    ministryName = r?.ministryName || null;
+  }
+  const $or = [];
+  // Church-wide events for the same church
+  if (church) $or.push({ visibility:'church', church });
+  // Ministry-scoped events: SuperAdmin sees all ministries; MinistryAdmin and unit roles see their ministry only
+  if (isSuper) {
+    if (church) $or.push({ visibility:'ministry', church });
+  } else if (ministryName && church) {
+    $or.push({ visibility:'ministry', church, ministryName });
+  }
+  const query = $or.length ? { $or } : {};
+  const events = await Event.find(query).sort({ date: -1 }).limit(200);
   res.json({ ok: true, events });
 }
 
