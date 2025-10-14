@@ -9,6 +9,15 @@ const Song = require('../models/Song');
 const Achievement = require('../models/Achievement');
 const Finance = require('../models/Finance');
 
+function actorIsSuper(user){ return (user.roles||[]).some(r=>r.role==='SuperAdmin') || user.activeRole==='SuperAdmin'; }
+function actorMinRole(user){ return (user.roles||[]).find(r=>r.role==='MinistryAdmin'); }
+function actorLeaderUnitIds(user){ return (user.roles||[]).filter(r=>r.role==='UnitLeader' && r.unit).map(r=>String(r.unit)); }
+function unitWithinMinScope(unit, minRole, actor){
+  const sameChurch = String(unit.church||'') === String(minRole?.church||actor.church||'');
+  const sameMinistry = String(unit.ministryName||'') === String(minRole?.ministryName||'');
+  return sameChurch && sameMinistry;
+}
+
 async function createUnit(req, res) {
   try {
     const actor = req.user;
@@ -300,4 +309,170 @@ async function unitSummaryById(req, res) {
   }
 }
 
-module.exports = { createUnit, addMember, listUnits, listUnitsPublic, listUnitsDashboard, unitSummaryById };
+// Assign a unit as the attendance-taking unit
+// POST /api/units/assign-attendance { unitId }
+// SuperAdmin: can assign across current church context
+// MinistryAdmin: can assign within their church+ministry only
+async function assignAttendanceUnit(req,res){
+  try{
+    const actor = req.user;
+    const { unitId } = req.body || {};
+    if(!unitId) return res.status(400).json({ ok:false, message:'unitId required' });
+    const unit = await Unit.findById(unitId);
+    if(!unit) return res.status(404).json({ ok:false, message:'Unit not found' });
+    const isSuper = (actor.roles||[]).some(r=>r.role==='SuperAdmin') || actor.activeRole==='SuperAdmin';
+    const minRole = (actor.roles||[]).find(r=>r.role==='MinistryAdmin');
+    if(!isSuper && !minRole) return res.status(403).json({ ok:false, message:'Forbidden' });
+    // Scope check for MinistryAdmin
+    if(minRole && !isSuper){
+      const sameChurch = String(unit.church||'') === String(minRole.church||actor.church||'');
+      const sameMinistry = String(unit.ministryName||'') === String(minRole.ministryName||'');
+      if(!(sameChurch && sameMinistry)) return res.status(403).json({ ok:false, message:'Out of ministry scope' });
+      // Clear prior attendanceTaking within ministry scope then set this one
+      await Unit.updateMany({ church: minRole.church||actor.church, ministryName: minRole.ministryName }, { $set: { attendanceTaking: false } });
+      unit.attendanceTaking = true;
+      await unit.save();
+      return res.json({ ok:true, unitId: String(unit._id), attendanceTaking: true });
+    }
+    // SuperAdmin: clear within church scope
+    const churchId = actor.church || unit.church || null;
+    if(churchId){
+      await Unit.updateMany({ church: churchId }, { $set: { attendanceTaking: false } });
+    }
+    unit.attendanceTaking = true; await unit.save();
+    return res.json({ ok:true, unitId: String(unit._id), attendanceTaking: true });
+  } catch(e){
+    return res.status(500).json({ ok:false, message:'Failed to assign attendance unit', error:e.message });
+  }
+}
+
+// Assign a financial secretary for a unit (exactly one member promoted with duty)
+// POST /api/units/:id/assign-finsec { userId }
+async function assignFinancialSecretary(req,res){
+  try{
+    const actor = req.user; const unitId = req.params.id; const { userId } = req.body || {};
+    if(!unitId || !userId) return res.status(400).json({ ok:false, message:'unitId and userId required' });
+    const [unit, user] = await Promise.all([
+      Unit.findById(unitId),
+      User.findById(userId)
+    ]);
+    if(!unit) return res.status(404).json({ ok:false, message:'Unit not found' });
+    if(!user) return res.status(404).json({ ok:false, message:'User not found' });
+    const isSuper = (actor.roles||[]).some(r=>r.role==='SuperAdmin') || actor.activeRole==='SuperAdmin';
+    const minRole = (actor.roles||[]).find(r=>r.role==='MinistryAdmin');
+    const unitLeaderRole = (actor.roles||[]).find(r=>r.role==='UnitLeader' && String(r.unit)===String(unitId));
+    if(!isSuper && !minRole && !unitLeaderRole) return res.status(403).json({ ok:false, message:'Forbidden' });
+    // Scope checks for MinistryAdmin
+    if(minRole && !isSuper){
+      const sameChurch = String(unit.church||'') === String(minRole.church||actor.church||'');
+      const sameMinistry = String(unit.ministryName||'') === String(minRole.ministryName||'');
+      if(!(sameChurch && sameMinistry)) return res.status(403).json({ ok:false, message:'Out of ministry scope' });
+    }
+    // Ensure user is part of the unit (member or leader)
+    const inUnit = (unit.members||[]).some(id=>String(id)===String(user._id)) || (unit.leaders||[]).some(id=>String(id)===String(user._id));
+    if(!inUnit) return res.status(400).json({ ok:false, message:'User is not in this unit' });
+    // Remove previous financial secretary duty within this unit by clearing duty flag from other users
+    await User.updateMany({ roles: { $elemMatch: { unit: unitId, role: { $in: ['UnitLeader','Member'] }, duties: { $in: ['FinancialSecretary'] } } } }, { $pull: { 'roles.$[].duties': 'FinancialSecretary' } });
+    // Ensure target has UnitLeader role (or add) and set duty
+    const roles = user.roles||[];
+    let role = roles.find(r=>String(r.unit)===String(unitId) && ['UnitLeader','Member'].includes(r.role));
+    if(!role){
+      roles.push({ role:'UnitLeader', unit: unitId, duties:['FinancialSecretary'] });
+    } else {
+      role.role = 'UnitLeader';
+      role.duties = Array.from(new Set([...(role.duties||[]), 'FinancialSecretary']));
+    }
+    user.roles = roles; await user.save();
+    return res.json({ ok:true, unitId: String(unitId), finsec: String(user._id) });
+  } catch(e){
+    return res.status(500).json({ ok:false, message:'Failed to assign financial secretary', error:e.message });
+  }
+}
+
+// Toggle music unit for a given unit (SuperAdmin or MinistryAdmin in scope)
+// POST /api/units/:id/assign-music { enabled:boolean }
+async function assignMusicUnit(req,res){
+  try{
+    const actor = req.user; const { id } = req.params; const { enabled } = req.body||{};
+    const unit = await Unit.findById(id);
+    if(!unit) return res.status(404).json({ ok:false, message:'Unit not found' });
+    const isSuper = actorIsSuper(actor); const minRole = actorMinRole(actor);
+    if(!isSuper && !minRole) return res.status(403).json({ ok:false, message:'Forbidden' });
+    if(minRole && !isSuper && !unitWithinMinScope(unit, minRole, actor)) return res.status(403).json({ ok:false, message:'Out of ministry scope' });
+    unit.musicUnit = !!enabled; await unit.save();
+    return res.json({ ok:true, unitId:String(unit._id), musicUnit: unit.musicUnit });
+  } catch(e){ return res.status(500).json({ ok:false, message:'Failed to assign music unit', error:e.message }); }
+}
+
+// Assign report cards to units (multi-select). SuperAdmin can target by church/ministry.
+// POST /api/units/assign-cards { cardKeys:string[], unitIds?:string[], churchId?, ministry? }
+async function assignCardsToUnits(req,res){
+  try{
+    const actor = req.user; const isSuper = actorIsSuper(actor); const minRole = actorMinRole(actor);
+    const { cardKeys=[], unitIds=[], churchId, ministry } = req.body||{};
+    if(!isSuper && !minRole) return res.status(403).json({ ok:false, message:'Forbidden' });
+    const filter = {};
+    if(unitIds && unitIds.length){ filter._id = { $in: unitIds }; }
+    if(isSuper){ if(churchId) filter.church = churchId; if(ministry) filter.ministryName = ministry; }
+    if(minRole && !isSuper){ filter.church = minRole.church||actor.church; if(minRole.ministryName) filter.ministryName = minRole.ministryName; }
+    const keys = Array.from(new Set((cardKeys||[]).map(k=>String(k))));
+    const units = await Unit.find(filter);
+    for(const u of units){ u.enabledReportCards = keys; await u.save(); }
+    return res.json({ ok:true, count: units.length });
+  } catch(e){ return res.status(500).json({ ok:false, message:'Failed to assign cards', error:e.message }); }
+}
+
+// Assign member duties within a unit: ApproveMembers or CreateWorkPlan (UnitLeader for own unit or Admins)
+// POST /api/units/:id/assign-member-duty { userId, approveMembers?:boolean, createWorkPlan?:boolean }
+async function assignMemberDuty(req,res){
+  try{
+    const actor = req.user; const unitId = req.params.id; const { userId, approveMembers, createWorkPlan } = req.body||{};
+    if(!unitId || !userId) return res.status(400).json({ ok:false, message:'unitId and userId required' });
+    const [unit, user] = await Promise.all([ Unit.findById(unitId), User.findById(userId) ]);
+    if(!unit || !user) return res.status(404).json({ ok:false, message:'Not found' });
+    const isSuper = actorIsSuper(actor); const minRole = actorMinRole(actor); const leaderUnitIds = actorLeaderUnitIds(actor);
+    if(!isSuper && !minRole && !leaderUnitIds.includes(String(unitId))) return res.status(403).json({ ok:false, message:'Forbidden' });
+    if(minRole && !isSuper && !unitWithinMinScope(unit, minRole, actor)) return res.status(403).json({ ok:false, message:'Out of ministry scope' });
+    // Ensure user is a member or leader of this unit
+    const inUnit = (unit.members||[]).some(id=>String(id)===String(user._id)) || (unit.leaders||[]).some(id=>String(id)===String(user._id));
+    if(!inUnit) return res.status(400).json({ ok:false, message:'User is not in this unit' });
+    // Update duties on the user role record for this unit
+    const roles = user.roles||[];
+    let role = roles.find(r=>String(r.unit)===String(unitId) && ['UnitLeader','Member'].includes(r.role));
+    if(!role){ role = { role:'Member', unit: unitId, duties: [] }; roles.push(role); }
+    role.duties = Array.from(new Set([
+      ...(role.duties||[]),
+      ...(approveMembers ? ['ApproveMembers'] : []),
+      ...(createWorkPlan ? ['CreateWorkPlan'] : [])
+    ]));
+    user.roles = roles; await user.save();
+    return res.json({ ok:true, unitId:String(unitId), userId:String(user._id), duties: role.duties });
+  } catch(e){ return res.status(500).json({ ok:false, message:'Failed to assign duty', error:e.message }); }
+}
+
+// List units with leaders and assignment flags for admin UI
+// GET /api/units/assignments?ministry=... (auth)
+async function listUnitAssignments(req,res){
+  try{
+    const actor = req.user; const isSuper = actorIsSuper(actor); const minRole = actorMinRole(actor);
+    const { ministry, churchId } = req.query || {};
+    const filter = {};
+    if(isSuper){ if(churchId) filter.church = churchId; if(ministry) filter.ministryName = ministry; else if(actor.church) filter.church = actor.church; }
+    if(minRole && !isSuper){ filter.church = minRole.church||actor.church; if(minRole.ministryName) filter.ministryName = minRole.ministryName; }
+    const units = await Unit.find(filter).select('name leaders members attendanceTaking musicUnit enabledReportCards ministryName')
+      .populate('leaders','firstName surname')
+      .lean();
+    const mapped = units.map(u=>({
+      _id: u._id,
+      name: u.name,
+      leaderName: (u.leaders && u.leaders.length) ? `${u.leaders[0].firstName||''} ${u.leaders[0].surname||''}`.trim() : '_',
+      attendanceTaking: !!u.attendanceTaking,
+      musicUnit: !!u.musicUnit,
+      enabledReportCards: u.enabledReportCards||[],
+      ministryName: u.ministryName||null
+    }));
+    return res.json({ ok:true, units: mapped });
+  } catch(e){ return res.status(500).json({ ok:false, message:'Failed to list assignments', error:e.message }); }
+}
+
+module.exports = { createUnit, addMember, listUnits, listUnitsPublic, listUnitsDashboard, unitSummaryById, assignAttendanceUnit, assignFinancialSecretary, assignMusicUnit, assignCardsToUnits, assignMemberDuty, listUnitAssignments };

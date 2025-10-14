@@ -1,19 +1,31 @@
 const express = require('express');
 const router = express.Router();
 const { authMiddleware } = require('../middleware/auth');
-const { createUnit, addMember, listUnits, listUnitsPublic, listUnitsDashboard, unitSummaryById } = require('../controllers/unitsController');
+const { createUnit, addMember, listUnits, listUnitsPublic, listUnitsDashboard, unitSummaryById, assignAttendanceUnit, assignFinancialSecretary, assignMusicUnit, assignCardsToUnits, assignMemberDuty, listUnitAssignments } = require('../controllers/unitsController');
 const Unit = require('../models/Unit');
 const User = require('../models/User');
 
 router.post('/', authMiddleware, createUnit);
 router.post('/:id/members', authMiddleware, addMember);
 router.get('/', authMiddleware, listUnits);
+// Admin view of current assignments
+router.get('/assignments', authMiddleware, listUnitAssignments);
 // Public listing for registration wizard (name & _id only)
 router.get('/public', listUnitsPublic);
 // SuperAdmin dashboard view of all units with computed metrics
 router.get('/dashboard', authMiddleware, listUnitsDashboard);
 // SuperAdmin unit summary by id
 router.get('/:id/summary', authMiddleware, unitSummaryById);
+// Assign attendance-taking unit (SuperAdmin or MinistryAdmin within scope)
+router.post('/assign-attendance', authMiddleware, assignAttendanceUnit);
+// Assign financial secretary for a unit (SuperAdmin/MinistryAdmin within scope, or that unit's UnitLeader)
+router.post('/:id/assign-finsec', authMiddleware, assignFinancialSecretary);
+// Assign music-unit flag for a unit
+router.post('/:id/assign-music', authMiddleware, assignMusicUnit);
+// Assign report cards to units (bulk)
+router.post('/assign-cards', authMiddleware, assignCardsToUnits);
+// Assign member duty flags (approve members, create work plan)
+router.post('/:id/assign-duty', authMiddleware, assignMemberDuty);
 
 // GET /api/units/:id/members  (auth) => minimal member list
 router.get('/:id/members/list', authMiddleware, async (req,res) => {

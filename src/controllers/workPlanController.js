@@ -148,6 +148,27 @@ exports.createWorkPlan = async (req, res) => {
     if(!unitId){
       unitId = deriveActiveUnitId(req.user, req);
     }
+    // Permission gate: SuperAdmin always allowed; UnitLeader allowed; Members require CreateWorkPlan duty in active unit
+    try {
+      const role = req.user?.activeRole;
+      if (role !== 'SuperAdmin') {
+        if (role === 'UnitLeader') {
+          // allowed
+        } else if (role === 'Member') {
+          const uid = unitId || null;
+          if (!uid) return res.status(403).json({ ok: false, error: 'No active unit context for this action' });
+          const roles = req.user?.roles || [];
+          const match = roles.find(r => String(r.unit) === String(uid) && (r.role === 'Member' || r.role === 'UnitLeader'));
+          const duties = (match && Array.isArray(match.duties)) ? match.duties : [];
+          if (!duties.includes('CreateWorkPlan')) {
+            return res.status(403).json({ ok: false, error: 'Not allowed to create work plans' });
+          }
+        } else {
+          // Other roles: default deny for now
+          return res.status(403).json({ ok: false, error: 'Not allowed' });
+        }
+      }
+    } catch {}
     const doc = new WorkPlan({
       title: body.title || 'Untitled Work Plan',
       owner: req.user?._id,
