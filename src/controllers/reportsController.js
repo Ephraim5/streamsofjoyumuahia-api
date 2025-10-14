@@ -31,7 +31,7 @@ async function unitLeaderSummary(req, res){
       User.countDocuments({ roles: { $elemMatch: { unit: unitId, role: { $in: ['UnitLeader','Member'] } } } }),
       Soul.countDocuments({ unit: unitId }),
       Finance.aggregate([
-        { $match: {} },
+        { $match: { unit: unitId } },
         { $group: { _id: '$type', total: { $sum: '$amount' } } }
       ]),
       Event.find({ date: { $gte: new Date() } }).sort({ date:1 }).limit(5).select('title date')

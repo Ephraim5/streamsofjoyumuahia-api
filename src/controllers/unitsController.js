@@ -278,7 +278,7 @@ async function unitSummaryById(req, res) {
       Song.countDocuments({ unit: unitId }),
       Achievement.countDocuments({ unit: unitId }),
       Finance.aggregate([
-        { $match: {} },
+        { $match: { unit: unitId } },
         { $group: { _id: '$type', total: { $sum: '$amount' } } }
       ])
     ]);

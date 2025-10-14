@@ -1,5 +1,5 @@
 const Finance = require('../models/Finance');
-const Unit = require('../models/Unit');
+const mongoose = require('mongoose');
 
 function hasDuty(user, unitId, dutyName) {
   const duties = [];
@@ -111,8 +111,9 @@ async function financeSummary(req,res){
     }
     // Aggregate last 12 months income/expense totals for the unit
     const now = new Date(); const start = new Date(now.getFullYear(), now.getMonth()-11, 1);
+    const unitMatch = mongoose.Types.ObjectId.isValid(unitId) ? new mongoose.Types.ObjectId(unitId) : unitId;
     const pipeline = [
-      { $match: { unit: Unit.castObjectId ? Unit.castObjectId(unitId) : (require('mongoose').Types.ObjectId.isValid(unitId)? require('mongoose').Types.ObjectId(unitId) : unitId), date: { $gte: start } } },
+      { $match: { unit: unitMatch, date: { $gte: start } } },
       { $project: { type:1, amount:1, year: { $year: '$date' }, month: { $month: '$date' } } },
       { $group: { _id: { year:'$year', month:'$month', type:'$type' }, total: { $sum: '$amount' } } }
     ];
