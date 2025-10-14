@@ -428,9 +428,12 @@ async function assignCardsToUnits(req,res){
 
 // Assign member duties within a unit: ApproveMembers or CreateWorkPlan (UnitLeader for own unit or Admins)
 // POST /api/units/:id/assign-member-duty { userId, approveMembers?:boolean, createWorkPlan?:boolean }
+// Behavior: If a boolean field is provided, we explicitly set that duty on/off accordingly (idempotent). Other duties are preserved.
 async function assignMemberDuty(req,res){
   try{
-    const actor = req.user; const unitId = req.params.id; const { userId, approveMembers, createWorkPlan } = req.body||{};
+    const actor = req.user; const unitId = req.params.id; const { userId } = req.body||{};
+    const approveMembers = typeof req.body?.approveMembers === 'boolean' ? !!req.body.approveMembers : undefined;
+    const createWorkPlan = typeof req.body?.createWorkPlan === 'boolean' ? !!req.body.createWorkPlan : undefined;
     if(!unitId || !userId) return res.status(400).json({ ok:false, message:'unitId and userId required' });
     const [unit, user] = await Promise.all([ Unit.findById(unitId), User.findById(userId) ]);
     if(!unit || !user) return res.status(404).json({ ok:false, message:'Not found' });
@@ -444,11 +447,12 @@ async function assignMemberDuty(req,res){
     const roles = user.roles||[];
     let role = roles.find(r=>String(r.unit)===String(unitId) && ['UnitLeader','Member'].includes(r.role));
     if(!role){ role = { role:'Member', unit: unitId, duties: [] }; roles.push(role); }
-    role.duties = Array.from(new Set([
-      ...(role.duties||[]),
-      ...(approveMembers ? ['ApproveMembers'] : []),
-      ...(createWorkPlan ? ['CreateWorkPlan'] : [])
-    ]));
+    const current = Array.isArray(role.duties) ? role.duties.slice() : [];
+    // Remove only the two managed duties; keep others (e.g., FinancialSecretary)
+    let next = current.filter(d => d !== 'ApproveMembers' && d !== 'CreateWorkPlan');
+    if (approveMembers === true) next.push('ApproveMembers');
+    if (createWorkPlan === true) next.push('CreateWorkPlan');
+    role.duties = Array.from(new Set(next));
     user.roles = roles; await user.save();
     return res.json({ ok:true, unitId:String(unitId), userId:String(user._id), duties: role.duties });
   } catch(e){ return res.status(500).json({ ok:false, message:'Failed to assign duty', error:e.message }); }
