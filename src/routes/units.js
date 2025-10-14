@@ -40,7 +40,7 @@ router.get('/:id/members/list', authMiddleware, async (req,res) => {
     }
     const unit = await Unit.findById(id).select('members');
     if(!unit) return res.status(404).json({ ok:false, message:'Unit not found' });
-    const members = await User.find({ _id: { $in: unit.members } }).select('firstName middleName surname phone title gender');
+  const members = await User.find({ _id: { $in: unit.members } }).select('firstName middleName surname phone title gender profile.avatar');
     return res.json({ ok:true, members });
   } catch(e){
     console.error('list unit members error', e);
