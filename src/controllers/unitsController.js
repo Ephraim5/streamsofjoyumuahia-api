@@ -372,15 +372,19 @@ async function assignFinancialSecretary(req,res){
     const inUnit = (unit.members||[]).some(id=>String(id)===String(user._id)) || (unit.leaders||[]).some(id=>String(id)===String(user._id));
     if(!inUnit) return res.status(400).json({ ok:false, message:'User is not in this unit' });
     // Remove previous financial secretary duty within this unit by clearing duty flag from other users
-    await User.updateMany({ roles: { $elemMatch: { unit: unitId, role: { $in: ['UnitLeader','Member'] }, duties: { $in: ['FinancialSecretary'] } } } }, { $pull: { 'roles.$[].duties': 'FinancialSecretary' } });
-    // Ensure target has UnitLeader role (or add) and set duty
-    const roles = user.roles||[];
-    let role = roles.find(r=>String(r.unit)===String(unitId) && ['UnitLeader','Member'].includes(r.role));
-    if(!role){
-      roles.push({ role:'UnitLeader', unit: unitId, duties:['FinancialSecretary'] });
+    await User.updateMany(
+      { roles: { $elemMatch: { unit: unitId, role: { $in: ['UnitLeader','Member'] }, duties: { $in: ['FinancialSecretary'] } } } },
+      { $pull: { 'roles.$[].duties': 'FinancialSecretary' } }
+    );
+    // Ensure target has a Member role for this unit and set duty without promoting to UnitLeader
+    const roles = user.roles || [];
+    let role = roles.find(r => String(r.unit) === String(unitId) && ['UnitLeader','Member'].includes(r.role));
+    if (!role) {
+      // Add as Member with the duty
+      roles.push({ role: 'Member', unit: unitId, duties: ['FinancialSecretary'] });
     } else {
-      role.role = 'UnitLeader';
-      role.duties = Array.from(new Set([...(role.duties||[]), 'FinancialSecretary']));
+      // Keep existing role; do not force upgrade to UnitLeader
+      role.duties = Array.from(new Set([...(role.duties || []), 'FinancialSecretary']));
     }
     user.roles = roles; await user.save();
     return res.json({ ok:true, unitId: String(unitId), finsec: String(user._id) });
