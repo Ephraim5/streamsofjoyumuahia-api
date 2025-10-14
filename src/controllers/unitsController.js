@@ -454,8 +454,36 @@ async function assignMemberDuty(req,res){
     if (createWorkPlan === true) next.push('CreateWorkPlan');
     role.duties = Array.from(new Set(next));
     user.roles = roles; await user.save();
+    // If switching on a unique duty, clear it from others in this unit
+    const bulkFilters = [];
+    if (approveMembers === true) bulkFilters.push('ApproveMembers');
+    if (createWorkPlan === true) bulkFilters.push('CreateWorkPlan');
+    for (const key of bulkFilters) {
+      await User.updateMany(
+        { _id: { $ne: user._id }, roles: { $elemMatch: { unit: unitId, duties: { $in: [key] } } } },
+        { $pull: { 'roles.$[].duties': key } }
+      );
+    }
     return res.json({ ok:true, unitId:String(unitId), userId:String(user._id), duties: role.duties });
   } catch(e){ return res.status(500).json({ ok:false, message:'Failed to assign duty', error:e.message }); }
+}
+
+// Clear financial secretary for a unit (no assignee)
+// POST /api/units/:id/unassign-finsec
+async function unassignFinancialSecretary(req,res){
+  try{
+    const actor = req.user; const unitId = req.params.id;
+    const unit = await Unit.findById(unitId);
+    if(!unit) return res.status(404).json({ ok:false, message:'Unit not found' });
+    const isSuper = actorIsSuper(actor); const minRole = actorMinRole(actor); const leaderUnitIds = actorLeaderUnitIds(actor);
+    if(!isSuper && !minRole && !leaderUnitIds.includes(String(unitId))) return res.status(403).json({ ok:false, message:'Forbidden' });
+    if(minRole && !isSuper && !unitWithinMinScope(unit, minRole, actor)) return res.status(403).json({ ok:false, message:'Out of ministry scope' });
+    await User.updateMany(
+      { roles: { $elemMatch: { unit: unitId, duties: { $in: ['FinancialSecretary'] } } } },
+      { $pull: { 'roles.$[].duties': 'FinancialSecretary' } }
+    );
+    return res.json({ ok:true, unitId: String(unitId) });
+  } catch(e){ return res.status(500).json({ ok:false, message:'Failed to unassign financial secretary', error:e.message }); }
 }
 
 // List units with leaders and assignment flags for admin UI
@@ -483,4 +511,4 @@ async function listUnitAssignments(req,res){
   } catch(e){ return res.status(500).json({ ok:false, message:'Failed to list assignments', error:e.message }); }
 }
 
-module.exports = { createUnit, addMember, listUnits, listUnitsPublic, listUnitsDashboard, unitSummaryById, assignAttendanceUnit, assignFinancialSecretary, assignMusicUnit, assignCardsToUnits, assignMemberDuty, listUnitAssignments };
+module.exports = { createUnit, addMember, listUnits, listUnitsPublic, listUnitsDashboard, unitSummaryById, assignAttendanceUnit, assignFinancialSecretary, assignMusicUnit, assignCardsToUnits, assignMemberDuty, listUnitAssignments, unassignFinancialSecretary };

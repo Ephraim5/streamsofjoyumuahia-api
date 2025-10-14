@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authMiddleware } = require('../middleware/auth');
-const { createUnit, addMember, listUnits, listUnitsPublic, listUnitsDashboard, unitSummaryById, assignAttendanceUnit, assignFinancialSecretary, assignMusicUnit, assignCardsToUnits, assignMemberDuty, listUnitAssignments } = require('../controllers/unitsController');
+const { createUnit, addMember, listUnits, listUnitsPublic, listUnitsDashboard, unitSummaryById, assignAttendanceUnit, assignFinancialSecretary, assignMusicUnit, assignCardsToUnits, assignMemberDuty, listUnitAssignments, unassignFinancialSecretary } = require('../controllers/unitsController');
 const Unit = require('../models/Unit');
 const User = require('../models/User');
 
@@ -20,6 +20,7 @@ router.get('/:id/summary', authMiddleware, unitSummaryById);
 router.post('/assign-attendance', authMiddleware, assignAttendanceUnit);
 // Assign financial secretary for a unit (SuperAdmin/MinistryAdmin within scope, or that unit's UnitLeader)
 router.post('/:id/assign-finsec', authMiddleware, assignFinancialSecretary);
+router.post('/:id/unassign-finsec', authMiddleware, unassignFinancialSecretary);
 // Assign music-unit flag for a unit
 router.post('/:id/assign-music', authMiddleware, assignMusicUnit);
 // Assign report cards to units (bulk)
@@ -40,7 +41,7 @@ router.get('/:id/members/list', authMiddleware, async (req,res) => {
     }
     const unit = await Unit.findById(id).select('members');
     if(!unit) return res.status(404).json({ ok:false, message:'Unit not found' });
-  const members = await User.find({ _id: { $in: unit.members } }).select('firstName middleName surname phone title gender profile.avatar');
+  const members = await User.find({ _id: { $in: unit.members } }).select('firstName middleName surname phone title gender profile.avatar roles');
     return res.json({ ok:true, members });
   } catch(e){
     console.error('list unit members error', e);
