@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Unit = require('../models/Unit');
 const User = require('../models/User');
 const Soul = require('../models/Soul');
@@ -266,19 +267,23 @@ async function unitSummaryById(req, res) {
 
     const unitId = req.params.id;
     if (!unitId) return res.status(400).json({ ok:false, message:'unitId required' });
+    if (!mongoose.Types.ObjectId.isValid(unitId)) {
+      return res.status(400).json({ ok:false, message:'Invalid unitId' });
+    }
+    const unitObjectId = new mongoose.Types.ObjectId(unitId);
 
     const [unit, membersCount, soulsCount, invitesCount, assistsCount, marriagesCount, recoveredCount, songsCount, achievementsCount, financeAgg] = await Promise.all([
       Unit.findById(unitId).select('name leaders members').lean(),
-      User.countDocuments({ roles: { $elemMatch: { unit: unitId, role: { $in: ['UnitLeader','Member'] } } } }),
-      Soul.countDocuments({ unit: unitId }),
-      Invite.countDocuments({ unit: unitId }),
-      Assistance.countDocuments({ unit: unitId }),
-      Marriage.countDocuments({ unit: unitId }),
-      RecoveredAddict.countDocuments({ unit: unitId }),
-      Song.countDocuments({ unit: unitId }),
-      Achievement.countDocuments({ unit: unitId }),
+      User.countDocuments({ roles: { $elemMatch: { unit: unitObjectId, role: { $in: ['UnitLeader','Member'] } } } }),
+      Soul.countDocuments({ unit: unitObjectId }),
+      Invite.countDocuments({ unit: unitObjectId }),
+      Assistance.countDocuments({ unit: unitObjectId }),
+      Marriage.countDocuments({ unit: unitObjectId }),
+      RecoveredAddict.countDocuments({ unit: unitObjectId }),
+      Song.countDocuments({ unit: unitObjectId }),
+      Achievement.countDocuments({ unit: unitObjectId }),
       Finance.aggregate([
-        { $match: { unit: unitId } },
+        { $match: { unit: unitObjectId } },
         { $group: { _id: '$type', total: { $sum: '$amount' } } }
       ])
     ]);
