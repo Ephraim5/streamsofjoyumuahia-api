@@ -77,18 +77,6 @@ if (process.env.EMAIL_DEBUG === 'true' || process.env.EMAIL_DEBUG === true) {
 
 connectDB().then(async () => {
   try {
-    const result = await seedUnits();
-    if (result?.created >= 0) {
-      console.log(`[startup] Default units seeding completed. Created: ${result.created}`);
-    } else if (result?.error) {
-      console.warn('[startup] Default units seeding error:', result.error);
-    }
-  } catch (e) {
-    console.warn('[startup] Failed to seed default units:', e.message);
-  }
-
-  // Ensure default organization/church/ministries exist
-  try {
     const res = await seedHierarchy();
     if (res?.ok) {
       console.log('[startup] Hierarchy seeding ensured.');
@@ -97,6 +85,17 @@ connectDB().then(async () => {
     }
   } catch (e) {
     console.warn('[startup] Failed to seed hierarchy:', e.message);
+  }
+
+  try {
+    const result = await seedUnits();
+    if (result?.created >= 0) {
+      console.log(`[startup] Default units seeding ensured. Created: ${result.created}${result?.updated ? `, updated: ${result.updated}` : ''}`);
+    } else if (result?.error) {
+      console.warn('[startup] Default units seeding error:', result.error);
+    }
+  } catch (e) {
+    console.warn('[startup] Failed to seed default units:', e.message);
   }
 });
 

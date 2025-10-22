@@ -7,6 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const mongoose = require('mongoose');
 const connectDB = require('../src/config/db');
 const Unit = require('../src/models/Unit');
+const Church = require('../src/models/Church');
 
 const DEFAULT_UNITS = [
   'Bankers Unit',
@@ -39,19 +40,52 @@ const DEFAULT_UNITS = [
   'Pastor Unit'
 ];
 
+const MAIN_CHURCH_SLUG = 'soj-umuahia';
+const MAIN_MINISTRY_NAME = 'Main Church';
+
 async function seedUnits() {
   try {
     await connectDB();
-    const existing = await Unit.find({}, 'name').lean();
-    const existingNames = new Set(existing.map(u => u.name.toLowerCase()));
-    const toCreate = DEFAULT_UNITS.filter(n => !existingNames.has(n.toLowerCase()));
-    if (toCreate.length === 0) {
-      console.log('[seedUnits] All default units already present.');
-      return { created: 0 };
+    const church = await Church.findOne({ slug: MAIN_CHURCH_SLUG }).lean();
+    if (!church) {
+      console.warn(`[seedUnits] Default church with slug "${MAIN_CHURCH_SLUG}" not found. Skipping unit seed.`);
+      return { created: 0, warning: 'default church missing' };
     }
-    await Unit.insertMany(toCreate.map(name => ({ name })));
-    console.log(`[seedUnits] Created ${toCreate.length} default units.`);
-    return { created: toCreate.length };
+
+    const churchId = church._id;
+
+    if (!Array.isArray(church.ministries) || !church.ministries.some((m) => m?.name === MAIN_MINISTRY_NAME)) {
+      console.warn(`[seedUnits] Church missing "${MAIN_MINISTRY_NAME}" ministry. Units cannot be scoped correctly.`);
+      return { created: 0, warning: 'main ministry missing' };
+    }
+
+    let created = 0;
+    let updated = 0;
+    for (const unitName of DEFAULT_UNITS) {
+      const res = await Unit.updateOne(
+        { name: unitName },
+        {
+          $set: {
+            church: churchId,
+            ministryName: MAIN_MINISTRY_NAME,
+          },
+          $setOnInsert: { name: unitName },
+        },
+        { upsert: true }
+      );
+
+      if (res.upsertedCount) {
+        created += res.upsertedCount;
+      } else if (res.modifiedCount) {
+        updated += res.modifiedCount;
+      }
+    }
+
+    if (updated) {
+      console.log(`[seedUnits] Updated ${updated} units to ensure church/ministry linkage.`);
+    }
+    console.log(`[seedUnits] Created ${created} default units.`);
+    return { created, updated };
   } catch (err) {
     console.error('[seedUnits] Error seeding units:', err.message);
     return { error: err.message };
