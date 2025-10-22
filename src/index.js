@@ -90,7 +90,10 @@ connectDB().then(async () => {
   try {
     const result = await seedUnits();
     if (result?.created >= 0) {
-      console.log(`[startup] Default units seeding ensured. Created: ${result.created}${result?.updated ? `, updated: ${result.updated}` : ''}`);
+      const parts = [`created: ${result.created ?? 0}`];
+      if (result?.updated) parts.push(`updated: ${result.updated}`);
+      if (typeof result?.skipped === 'number') parts.push(`skipped: ${result.skipped}`);
+      console.log(`[startup] Default units seeding ensured (${parts.join(', ')}).`);
     } else if (result?.error) {
       console.warn('[startup] Default units seeding error:', result.error);
     }
