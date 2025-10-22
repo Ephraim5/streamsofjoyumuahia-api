@@ -43,7 +43,7 @@ const MAIN_CHURCH_UNITS = [
   'Watchtower',
   'Admin Executive Unit',
   'Pastors Executive Unit',
-  'Follow-up Unit'
+  'Follow-Up Unit'
 ];
 
 const YOUTH_MINISTRY_UNITS = [
@@ -60,7 +60,7 @@ const YOUTH_MINISTRY_UNITS = [
   'Singles Temple Keepers',
   'Triumphant Drama Family',
   'Capacity & Business Development Unit',
-  'Follow-up Unit',
+  'Follow-Up Unit',
   'Creatives Unit',
   'Artisans Unit',
   'Welfare and CSR Unit',
