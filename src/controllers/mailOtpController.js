@@ -62,8 +62,9 @@ exports.sendMailOtp = async (req, res) => {
     );
     // Developer bypass to unblock onboarding when SMTP is misconfigured
     const expiresInSeconds = 600; // 10 minutes validity window
-    if (process.env.ALLOW_FAKE_OTP === 'true') {
-      console.warn('[mailOtp] ALLOW_FAKE_OTP=true – skipping real email send and returning OTP in response (DO NOT ENABLE IN PRODUCTION).');
+    const allowDevBypass = process.env.ALLOW_FAKE_OTP === 'true' && process.env.NODE_ENV !== 'production';
+    if (allowDevBypass) {
+      console.warn('[mailOtp] ALLOW_FAKE_OTP enabled – returning OTP in response for non-production environment.');
       return res.json({
         ok: true,
         status: 'sentDev',
