@@ -39,9 +39,28 @@ router.get('/:id/members/list', authMiddleware, async (req,res) => {
     if(!isSuper && !allowedUnitIds.includes(String(id))){
       return res.status(403).json({ ok:false, message:'Forbidden for this unit' });
     }
-    const unit = await Unit.findById(id).select('members');
+    const unit = await Unit.findById(id).select('members leaders').lean();
     if(!unit) return res.status(404).json({ ok:false, message:'Unit not found' });
-  const members = await User.find({ _id: { $in: unit.members } }).select('firstName middleName surname phone title gender profile.avatar roles');
+
+    const uniqueIds = Array.from(new Set([
+      ...(unit.members || []).filter(Boolean).map(memberId => String(memberId)),
+      ...(unit.leaders || []).filter(Boolean).map(leaderId => String(leaderId))
+    ]));
+
+    if(uniqueIds.length === 0){
+      return res.json({ ok:true, members: [] });
+    }
+
+    const membersRaw = await User.find({ _id: { $in: uniqueIds } })
+      .select('firstName middleName surname phone title roles profile.gender profile.maritalStatus profile.employmentStatus profile.avatar')
+      .lean();
+
+    const members = membersRaw.sort((a,b)=>{
+      const nameA = `${a.firstName||''} ${a.middleName||''} ${a.surname||''}`.trim().toLowerCase();
+      const nameB = `${b.firstName||''} ${b.middleName||''} ${b.surname||''}`.trim().toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
     return res.json({ ok:true, members });
   } catch(e){
     console.error('list unit members error', e);
