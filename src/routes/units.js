@@ -52,7 +52,7 @@ router.get('/:id/members/list', authMiddleware, async (req,res) => {
     }
 
     const membersRaw = await User.find({ _id: { $in: uniqueIds } })
-      .select('firstName middleName surname phone title roles profile.gender profile.maritalStatus profile.employmentStatus profile.avatar')
+      .select('firstName middleName surname phone title roles profile profile.gender profile.maritalStatus profile.employmentStatus profile.avatar')
       .lean();
 
     const members = membersRaw.sort((a,b)=>{
